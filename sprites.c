@@ -112,6 +112,13 @@ sprite deep_copy_sprite(sprite original) {
 }
 
 void unload_sprite(sprite loaded_sprite) { free(loaded_sprite.pixel_buffer); }
+void unload_sprites(generated_circles circles) {
+  unload_sprite(circles.green);
+  unload_sprite(circles.red);
+  unload_sprite(circles.yellow);
+  unload_sprite(circles.blue);
+  unload_sprite(circles.orange);
+}
 
 void sprite_for_each_pixel(sprite loaded_sprite,
                            void (*fn)(png_bytep px, int px_row, int px_col)) {
@@ -178,7 +185,7 @@ sprite color_circle(sprite circle_base, circle_colors colors) {
           &(circle_base.pixel_buffer[y * circle_base.B_per_row * 4 + x * 4]);
 
       int pixel_avg = average_pixel(px);
-      RGB pixel_color;
+      RGBA pixel_color;
 
       if (WHITE_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
           pixel_avg <= WHITE_THRESHOLD + COLOR_SELECTION_RANGE)
@@ -199,6 +206,7 @@ sprite color_circle(sprite circle_base, circle_colors colors) {
       px[0] = pixel_color.R;
       px[1] = pixel_color.G;
       px[2] = pixel_color.B;
+      px[3] = pixel_color.A;
     }
   }
 

@@ -23,7 +23,8 @@ typedef struct {
   unsigned char R;
   unsigned char G;
   unsigned char B;
-} RGB;
+  unsigned char A;
+} RGBA;
 
 
 #define DARK_GRAY_THRESHOLD 70
@@ -40,16 +41,17 @@ typedef struct {
 // This assumes you're providing a grayscale image and uses average_pixel().
 // Design your base correctly!
 typedef struct {
-  RGB white;
-  RGB light_gray;
-  RGB middle_gray;
-  RGB dark_gray;
+  RGBA white;
+  RGBA light_gray;
+  RGBA middle_gray;
+  RGBA dark_gray;
 } circle_colors;
 
 // Load a sprite from a filename
 sprite load_sprite(char *filename);
 // Free remaining memory
 void unload_sprite(sprite loaded_sprite);
+void unload_sprites(generated_circles circles);
 
 void sprite_for_each_pixel(sprite loaded_sprite,
                            void (*fn)(png_bytep px, int px_row, int px_col));
