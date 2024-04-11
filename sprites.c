@@ -12,18 +12,18 @@ sprite load_sprite(char *filename) {
       png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
   if (!png) {
     perror("png_create_read_struct() encountered a fatal error!");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   png_infop info = png_create_info_struct(png);
   if (!info) {
     perror("png_create_info_struct() encountered a fatal error!");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (setjmp(png_jmpbuf(png))) {
     perror("setjmp() encountered a fatal error!");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   png_init_io(png, fp);
@@ -89,6 +89,28 @@ sprite load_sprite(char *filename) {
   return loaded_sprite;
 }
 
+sprite deep_copy_sprite(sprite original) {
+  sprite copy;
+
+  copy.pixel_buffer = malloc(original.height * original.B_per_row * 4);
+  if (copy.pixel_buffer == NULL) {
+    // Handle memory allocation error
+    perror("Error allocating memory for pixel buffer");
+    exit(EXIT_FAILURE);
+  }
+
+  // Copy the pixel data
+  memcpy(copy.pixel_buffer, original.pixel_buffer,
+         original.height * original.B_per_row * 4);
+
+  // Copy other fields
+  copy.width = original.width;
+  copy.height = original.height;
+  copy.B_per_row = original.B_per_row;
+
+  return copy;
+}
+
 void unload_sprite(sprite loaded_sprite) { free(loaded_sprite.pixel_buffer); }
 
 void sprite_for_each_pixel(sprite loaded_sprite,
@@ -115,8 +137,8 @@ void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
           loaded_sprite.pixel_buffer[sprite_row * loaded_sprite.B_per_row * 4 +
                                      sprite_col * 4]);
 
-      unsigned char R = (unsigned char)px[0], G = (unsigned char)px[0],
-                    B = (unsigned char)px[0];
+      unsigned char R = (unsigned char)px[0], G = (unsigned char)px[1],
+                    B = (unsigned char)px[2];
 
       if (!pixel_visible(px))
         continue;
@@ -146,6 +168,57 @@ void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
       (framebuffer + framebuffer_offset)[0] = B;
     }
   }
+}
+
+// Modifies in-place, so the return is only needed to condense generate_circles
+sprite color_circle(sprite circle_base, circle_colors colors) {
+  for (int y = 0; y < circle_base.height; y++) {
+    for (int x = 0; x < circle_base.width; x++) {
+      png_bytep px =
+          &(circle_base.pixel_buffer[y * circle_base.B_per_row * 4 + x * 4]);
+
+      int pixel_avg = average_pixel(px);
+      RGB pixel_color;
+
+      if (WHITE_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
+          pixel_avg <= WHITE_THRESHOLD + COLOR_SELECTION_RANGE)
+        pixel_color = colors.white;
+      else if (DARK_GRAY_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
+               pixel_avg <= DARK_GRAY_THRESHOLD + COLOR_SELECTION_RANGE)
+        pixel_color = colors.dark_gray;
+      else if (MIDDLE_GRAY_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
+               pixel_avg <= MIDDLE_GRAY_THRESHOLD + COLOR_SELECTION_RANGE)
+        pixel_color = colors.middle_gray;
+      else if (LIGHT_GRAY_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
+               pixel_avg <= LIGHT_GRAY_THRESHOLD + COLOR_SELECTION_RANGE)
+        pixel_color = colors.light_gray;
+      else
+        continue; // We will not modify this pixel
+
+      // Update pixel color from template
+      px[0] = pixel_color.R;
+      px[1] = pixel_color.G;
+      px[2] = pixel_color.B;
+    }
+  }
+
+  return circle_base;
+}
+
+generated_circles
+generate_circles(sprite circle_base, circle_colors green_colors,
+                 circle_colors red_colors, circle_colors yellow_colors,
+                 circle_colors blue_colors, circle_colors orange_colors) {
+  generated_circles circles;
+
+  // Make deep copies of the original circle sprite for each color & converts
+  circles.green = color_circle(deep_copy_sprite(circle_base), green_colors);
+  circles.red = color_circle(deep_copy_sprite(circle_base), red_colors);
+  circles.yellow = color_circle(deep_copy_sprite(circle_base), yellow_colors);
+  circles.blue = color_circle(deep_copy_sprite(circle_base), blue_colors);
+  circles.orange = color_circle(deep_copy_sprite(circle_base), orange_colors);
+
+  return circles;
 }
 
 int average_pixel(png_bytep px) { return (px[0] + px[1] + px[2]) / 3; }
