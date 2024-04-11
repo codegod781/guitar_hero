@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -std=c99
+CFLAGS=-Wall -Wextra -pedantic -std=c99 -D_XOPEN_SOURCE=600
 LDFLAGS=-lSDL2 -lpthread -lpng
 
 SRCS=game_logic.c vga_emulator.c sprites.c

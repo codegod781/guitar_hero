@@ -19,6 +19,9 @@ void unload_sprite(sprite loaded_sprite);
 void sprite_for_each_pixel(sprite loaded_sprite,
                            void (*fn)(png_bytep px, int px_row, int px_col));
 
+// Draws the loaded_sprite centered around screenX and screenY
+// Considers the top left corner of the screen (0, 0);
+void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX, int screenY);
 
 // Returns the average of the RGB values
 int average_pixel(png_bytep px);

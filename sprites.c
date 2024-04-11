@@ -1,4 +1,5 @@
 #include "sprites.h"
+#include "global_consts.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -101,17 +102,59 @@ void sprite_for_each_pixel(sprite loaded_sprite,
   }
 }
 
-int average_pixel(png_bytep px) {
-    return (px[0] + px[1] + px[2]) / 3;
+void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
+                 int screenY) {
+  // Determine the coordinates of the top left corner of the sprite on the
+  // screen
+  int tl[] = {screenX - loaded_sprite.width / 2,
+              screenY - loaded_sprite.height / 2};
+
+  for (int sprite_row = 0; sprite_row < loaded_sprite.height; sprite_row++) {
+    for (int sprite_col = 0; sprite_col < loaded_sprite.width; sprite_col++) {
+      png_bytep px = &(
+          loaded_sprite.pixel_buffer[sprite_row * loaded_sprite.B_per_row * 4 +
+                                     sprite_col * 4]);
+
+      unsigned char R = (unsigned char)px[0], G = (unsigned char)px[0],
+                    B = (unsigned char)px[0];
+
+      if (!pixel_visible(px))
+        continue;
+
+      // Determine the offset of the framebuffer for this pixel
+      int screen_x = tl[0] + sprite_col;
+      int screen_y = tl[1] + sprite_row;
+
+      if (screen_x < 0 || screen_y < 0)
+        continue;
+
+      printf("Drawing (R: %d, G: %d, B: %d) at screen coords (%d, %d), png "
+             "coords (%d, %d)\n",
+             R, G, B, screen_x, screen_y, sprite_col, sprite_row);
+
+      long long framebuffer_offset = screen_y * WINDOW_WIDTH * 4 + screen_x * 4;
+
+      if (framebuffer_offset < 0 ||
+          framebuffer_offset > WINDOW_WIDTH * WINDOW_HEIGHT * 4)
+        continue;
+
+      // Set R, G, B
+      unsigned char *screen_px = framebuffer + framebuffer_offset;
+      (framebuffer + framebuffer_offset)[2] = R;
+      (framebuffer + framebuffer_offset)[1] = G;
+      (framebuffer + framebuffer_offset)[0] = B;
+    }
+  }
 }
 
+int average_pixel(png_bytep px) { return (px[0] + px[1] + px[2]) / 3; }
+
 int pixel_visible(png_bytep px) {
-    return px[3] >= 127; // Our VGA doesn't support transparency anyways
+  return px[3] >= 127; // Our VGA doesn't support transparency anyways
 }
 
 // For debugging purposes
 void print_pixel_data(png_bytep px, int px_row, int px_col) {
-  printf("Got pixel: row %d, col %d = RGBA(%3d, %3d, %3d, %3d)\n", px_row, px_col, px[0],
-         px[1], px[2], px[3]);
+  printf("Got pixel: row %d, col %d = RGBA(%3d, %3d, %3d, %3d)\n", px_row,
+         px_col, px[0], px[1], px[2], px[3]);
 }
-

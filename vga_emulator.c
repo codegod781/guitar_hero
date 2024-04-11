@@ -1,4 +1,6 @@
 #include "vga_emulator.h"
+#include "global_consts.h"
+#include <unistd.h>
 
 void *render(void *args) {
   VGAEmulator *emulator = (VGAEmulator *)args;
@@ -21,6 +23,7 @@ void *render(void *args) {
       }
     }
     SDL_UpdateWindowSurface(emulator->window);
+    usleep(16667); // 60 Hz refresh rate
   }
   return NULL;
 }
