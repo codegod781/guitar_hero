@@ -28,6 +28,7 @@ int main() {
     sleep(1);
   }
 
+  VGAEmulator_destroy(&emulator);
   unload_sprite(GH_circle_base);
   free(framebuffer);
 
