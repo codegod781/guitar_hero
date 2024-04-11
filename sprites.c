@@ -128,15 +128,17 @@ void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
       if (screen_x < 0 || screen_y < 0)
         continue;
 
-      printf("Drawing (R: %d, G: %d, B: %d) at screen coords (%d, %d), png "
-             "coords (%d, %d)\n",
-             R, G, B, screen_x, screen_y, sprite_col, sprite_row);
-
       long long framebuffer_offset = screen_y * WINDOW_WIDTH * 4 + screen_x * 4;
 
       if (framebuffer_offset < 0 ||
-          framebuffer_offset > WINDOW_WIDTH * WINDOW_HEIGHT * 4)
+          framebuffer_offset >= WINDOW_WIDTH * WINDOW_HEIGHT * 4 ||
+          screen_x < 0 || screen_x >= WINDOW_WIDTH || screen_y < 0 ||
+          screen_y >= WINDOW_WIDTH)
         continue;
+
+      // printf("Drawing (R: %d, G: %d, B: %d) at screen coords (%d, %d), png "
+      //        "coords (%d, %d)\n",
+      //        R, G, B, screen_x, screen_y, sprite_col, sprite_row);
 
       // Set R, G, B
       (framebuffer + framebuffer_offset)[2] = R;

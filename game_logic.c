@@ -16,7 +16,10 @@ int main() {
   // Load necessary sprites into memory
   sprite GH_circle_base = load_sprite("sprites/GH-Circle.png");
 
-  draw_sprite(GH_circle_base, framebuffer, 12, 12);
+  draw_sprite(GH_circle_base, framebuffer, 0, 0);
+  draw_sprite(GH_circle_base, framebuffer, WINDOW_WIDTH, 0);
+  draw_sprite(GH_circle_base, framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+  draw_sprite(GH_circle_base, framebuffer, 0, WINDOW_HEIGHT);
 
   // Set up VGA emulator. Requires libsdl2-dev
   VGAEmulator emulator;
@@ -28,7 +31,7 @@ int main() {
     sleep(1);
   }
 
-  VGAEmulator_destroy(&emulator);
+  // VGAEmulator_destroy(&emulator);
   unload_sprite(GH_circle_base);
   free(framebuffer);
 
