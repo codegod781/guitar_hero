@@ -2,6 +2,8 @@
 #include "global_consts.h"
 #include <unistd.h>
 
+extern int SCREEN_LINE_LENGTH;
+
 void *render(void *args) {
   VGAEmulator *emulator = (VGAEmulator *)args;
   SDL_Surface *surface = emulator->surface;

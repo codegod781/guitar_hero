@@ -157,7 +157,7 @@ void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
       if (screen_x < 0 || screen_y < 0)
         continue;
 
-      long long framebuffer_offset = screen_y * WINDOW_WIDTH * 4 + screen_x * 4;
+      long long framebuffer_offset = screen_y * SCREEN_LINE_LENGTH + screen_x * 4;
 
       if (framebuffer_offset < 0 ||
           framebuffer_offset >= WINDOW_WIDTH * WINDOW_HEIGHT * 4 ||
