@@ -1,11 +1,11 @@
+#include "VGA.h"
 #include "global_consts.h"
 #include "sprites.h"
 #include "vga_emulator.h"
 #include <SDL2/SDL_blendmode.h>
-#include "VGA.h"
-#include <unistd.h>
 #include <linux/fb.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 // Color definitions (hardcoded).
 // Inspired by https://oaksstudio.itch.io/guitarheroui, recreated from scratch
@@ -30,12 +30,15 @@ circle_colors orange_colors = {.white = {255, 255, 255, 255},
                                .middle_gray = {139, 53, 24, 255},
                                .dark_gray = {143, 55, 25, 255}};
 
-int EMULATING_VGA = 0;
+int EMULATING_VGA = 1;
+int SCREEN_LINE_LENGTH;
 
 int main() {
   // 32 bits/pixel = 4 B/pixel
   unsigned char *framebuffer;
   screen_info screen;
+  VGAEmulator emulator;
+
   if (EMULATING_VGA) {
     printf("Running in VGA EMULATION MODE\n");
     if ((framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
@@ -48,14 +51,13 @@ int main() {
     screen = get_fb_screen_info();
 
     SCREEN_LINE_LENGTH = screen.fb_finfo->line_length;
-  }
 
     printf("X resolution: %d\n", screen.fb_vinfo->xres);
     printf("Y resolution: %d\n", screen.fb_vinfo->yres);
+  }
 
   // Set black background by default
   memset(framebuffer, 0, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
-
   // Load necessary sprites into memory
   sprite GH_circle_base = load_sprite("sprites/GH-Circle.png");
   // Generate the sprites for the notes
@@ -117,22 +119,26 @@ int main() {
               WINDOW_HEIGHT / 2 + 30);
 
   // Set up VGA emulator. Requires libsdl2-dev
-  // VGAEmulator emulator;
-  // if (VGAEmulator_init(&emulator, framebuffer))
-  //   return 1;
+
+  if (EMULATING_VGA) {
+    if (VGAEmulator_init(&emulator, framebuffer))
+      return 1;
+  }
 
   while (1) {
     sleep(1);
   }
 
-  // VGAEmulator_destroy(&emulator);
+  if (EMULATING_VGA)
+    VGAEmulator_destroy(&emulator);
   // Clear sprites
   unload_sprite(GH_circle_base);
   unload_sprites(note_circles);
   unload_sprites(play_circles_released);
   unload_sprites(play_circles_held);
 
-  // free(framebuffer);
+  if (EMULATING_VGA)
+    free(framebuffer);
 
   return 0;
 }
