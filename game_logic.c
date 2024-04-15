@@ -30,7 +30,7 @@ circle_colors orange_colors = {.white = {255, 255, 255, 255},
                                .middle_gray = {139, 53, 24, 255},
                                .dark_gray = {143, 55, 25, 255}};
 
-int EMULATING_VGA = 1;
+int EMULATING_VGA = 0;
 int SCREEN_LINE_LENGTH;
 
 int main() {
