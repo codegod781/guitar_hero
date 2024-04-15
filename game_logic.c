@@ -2,7 +2,10 @@
 #include "sprites.h"
 #include "vga_emulator.h"
 #include <SDL2/SDL_blendmode.h>
+#include "VGA.h"
 #include <unistd.h>
+#include <linux/fb.h>
+#include <stdlib.h>
 
 // Color definitions (hardcoded).
 // Inspired by https://oaksstudio.itch.io/guitarheroui, recreated from scratch
@@ -27,16 +30,31 @@ circle_colors orange_colors = {.white = {255, 255, 255, 255},
                                .middle_gray = {139, 53, 24, 255},
                                .dark_gray = {143, 55, 25, 255}};
 
+int EMULATING_VGA = 0;
+
 int main() {
   // 32 bits/pixel = 4 B/pixel
-  unsigned char *framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+  unsigned char *framebuffer;
+  screen_info screen;
+  if (EMULATING_VGA) {
+    printf("Running in VGA EMULATION MODE\n");
+    if ((framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
+      perror("Error allocating framebuffer!\n");
+      return 1;
+    }
+    SCREEN_LINE_LENGTH = WINDOW_WIDTH * 4;
+  } else {
+    framebuffer = fbopen();
+    screen = get_fb_screen_info();
+
+    SCREEN_LINE_LENGTH = screen.fb_finfo->line_length;
+  }
+
+    printf("X resolution: %d\n", screen.fb_vinfo->xres);
+    printf("Y resolution: %d\n", screen.fb_vinfo->yres);
+
   // Set black background by default
   memset(framebuffer, 0, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
-
-  if (framebuffer == NULL) {
-    printf("Error allocating framebuffer!\n");
-    return 1;
-  }
 
   // Load necessary sprites into memory
   sprite GH_circle_base = load_sprite("sprites/GH-Circle.png");
@@ -99,22 +117,22 @@ int main() {
               WINDOW_HEIGHT / 2 + 30);
 
   // Set up VGA emulator. Requires libsdl2-dev
-  VGAEmulator emulator;
-  if (VGAEmulator_init(&emulator, framebuffer))
-    return 1;
+  // VGAEmulator emulator;
+  // if (VGAEmulator_init(&emulator, framebuffer))
+  //   return 1;
 
-  while (emulator.running) {
+  while (1) {
     sleep(1);
   }
 
-  VGAEmulator_destroy(&emulator);
+  // VGAEmulator_destroy(&emulator);
   // Clear sprites
   unload_sprite(GH_circle_base);
   unload_sprites(note_circles);
   unload_sprites(play_circles_released);
   unload_sprites(play_circles_held);
 
-  free(framebuffer);
+  // free(framebuffer);
 
   return 0;
 }
