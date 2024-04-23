@@ -73,8 +73,6 @@ sprite load_sprite(char *filename) {
   loaded_sprite.pixel_buffer =
       malloc(loaded_sprite.height * loaded_sprite.B_per_row * 4);
 
-  printf("\n\n\n");
-
   for (int y = 0; y < loaded_sprite.height; y++) {
     memcpy(loaded_sprite.pixel_buffer + y * loaded_sprite.B_per_row * 4,
            row_pointers[y], loaded_sprite.B_per_row);
@@ -162,12 +160,12 @@ void draw_sprite(sprite loaded_sprite, unsigned char *framebuffer, int screenX,
       if (framebuffer_offset < 0 ||
           framebuffer_offset >= WINDOW_WIDTH * WINDOW_HEIGHT * 4 ||
           screen_x < 0 || screen_x >= WINDOW_WIDTH || screen_y < 0 ||
-          screen_y >= WINDOW_WIDTH)
+          screen_y >= WINDOW_HEIGHT)
         continue;
 
       // printf("Drawing (R: %d, G: %d, B: %d) at screen coords (%d, %d), png "
-      //        "coords (%d, %d)\n",
-      //        R, G, B, screen_x, screen_y, sprite_col, sprite_row);
+            //  "coords (%d, %d)\n",
+            //  R, G, B, screen_x, screen_y, sprite_col, sprite_row);
 
       // Set R, G, B
       (framebuffer + framebuffer_offset)[2] = R;

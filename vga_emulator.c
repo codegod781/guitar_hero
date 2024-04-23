@@ -1,5 +1,7 @@
 #include "vga_emulator.h"
 #include "global_consts.h"
+#include "guitar_state.h"
+#include <SDL2/SDL_events.h>
 #include <unistd.h>
 
 extern int SCREEN_LINE_LENGTH;
@@ -38,12 +40,35 @@ void *handle_events(void *args) {
       if (event.type == SDL_QUIT) {
         VGAEmulator_destroy(emulator);
         return NULL;
+      } else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+        int new_value = event.type == SDL_KEYDOWN;
+        switch (event.key.keysym.sym) {
+        case SDLK_1:
+          emulator->gs->green = new_value;
+          break;
+        case SDLK_2:
+          emulator->gs->red = new_value;
+          break;
+        case SDLK_3:
+          emulator->gs->yellow = new_value;
+          break;
+        case SDLK_4:
+          emulator->gs->blue = new_value;
+          break;
+        case SDLK_5:
+          emulator->gs->orange = new_value;
+          break;
+        case SDLK_SPACE:
+          emulator->gs->strum_bar_down = new_value;
+          break;
+        }
       }
     }
   }
 }
 
-int VGAEmulator_init(VGAEmulator *emulator, unsigned char *framebuffer) {
+int VGAEmulator_init(VGAEmulator *emulator, unsigned char *framebuffer,
+                     guitar_state *gs) {
   // Initialize SDL
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
@@ -64,6 +89,7 @@ int VGAEmulator_init(VGAEmulator *emulator, unsigned char *framebuffer) {
 
   emulator->framebuffer = framebuffer;
   emulator->running = 1;
+  emulator->gs = gs;
 
   if (pthread_create(&emulator->render_thread, NULL, render, emulator) != 0) {
     printf("Error creating render thread\n");

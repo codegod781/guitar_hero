@@ -1,9 +1,11 @@
 #include "VGA.h"
 #include "global_consts.h"
+#include "guitar_state.h"
 #include "sprites.h"
 #include "vga_emulator.h"
 #include <SDL2/SDL_blendmode.h>
 #include <linux/fb.h>
+#include <ncurses.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -30,14 +32,25 @@ circle_colors orange_colors = {.white = {255, 255, 255, 255},
                                .middle_gray = {139, 53, 24, 255},
                                .dark_gray = {143, 55, 25, 255}};
 
-int EMULATING_VGA = 0;
+struct {
+  int green;
+  int red;
+  int yellow;
+  int blue;
+  int orange;
+} color_cols_x = {15, 45, 75, 105, 135};
+
+int EMULATING_VGA = 1;
 int SCREEN_LINE_LENGTH;
 
 int main() {
   // 32 bits/pixel = 4 B/pixel
-  unsigned char *framebuffer;
+  unsigned char *framebuffer, *next_frame;
   screen_info screen;
   VGAEmulator emulator;
+
+  guitar_state controller_state;
+  init_guitar_state(&controller_state);
 
   if (EMULATING_VGA) {
     printf("Running in VGA EMULATION MODE\n");
@@ -54,6 +67,11 @@ int main() {
 
     printf("X resolution: %d\n", screen.fb_vinfo->xres);
     printf("Y resolution: %d\n", screen.fb_vinfo->yres);
+  }
+
+  if ((next_frame = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
+    perror("Error allocating next_frame!\n");
+    return 1;
   }
 
   // Set black background by default
@@ -82,51 +100,34 @@ int main() {
       generate_circles(GH_circle_base, green_colors, red_colors, yellow_colors,
                        blue_colors, orange_colors);
 
-  // Line of notes
-  draw_sprite(note_circles.green, framebuffer, WINDOW_WIDTH / 2 - 60,
-              WINDOW_HEIGHT / 2 - 30);
-  draw_sprite(note_circles.red, framebuffer, WINDOW_WIDTH / 2 - 30,
-              WINDOW_HEIGHT / 2 - 30);
-  draw_sprite(note_circles.yellow, framebuffer, WINDOW_WIDTH / 2,
-              WINDOW_HEIGHT / 2 - 30);
-  draw_sprite(note_circles.blue, framebuffer, WINDOW_WIDTH / 2 + 30,
-              WINDOW_HEIGHT / 2 - 30);
-  draw_sprite(note_circles.orange, framebuffer, WINDOW_WIDTH / 2 + 60,
-              WINDOW_HEIGHT / 2 - 30);
-
-  // Line of play indicators (released)
-  draw_sprite(play_circles_released.green, framebuffer, WINDOW_WIDTH / 2 - 60,
-              WINDOW_HEIGHT / 2);
-  draw_sprite(play_circles_released.red, framebuffer, WINDOW_WIDTH / 2 - 30,
-              WINDOW_HEIGHT / 2);
-  draw_sprite(play_circles_released.yellow, framebuffer, WINDOW_WIDTH / 2,
-              WINDOW_HEIGHT / 2);
-  draw_sprite(play_circles_released.blue, framebuffer, WINDOW_WIDTH / 2 + 30,
-              WINDOW_HEIGHT / 2);
-  draw_sprite(play_circles_released.orange, framebuffer, WINDOW_WIDTH / 2 + 60,
-              WINDOW_HEIGHT / 2);
-
-  // Line of play indicators (held)
-  draw_sprite(play_circles_held.green, framebuffer, WINDOW_WIDTH / 2 - 60,
-              WINDOW_HEIGHT / 2 + 30);
-  draw_sprite(play_circles_held.red, framebuffer, WINDOW_WIDTH / 2 - 30,
-              WINDOW_HEIGHT / 2 + 30);
-  draw_sprite(play_circles_held.yellow, framebuffer, WINDOW_WIDTH / 2,
-              WINDOW_HEIGHT / 2 + 30);
-  draw_sprite(play_circles_held.blue, framebuffer, WINDOW_WIDTH / 2 + 30,
-              WINDOW_HEIGHT / 2 + 30);
-  draw_sprite(play_circles_held.orange, framebuffer, WINDOW_WIDTH / 2 + 60,
-              WINDOW_HEIGHT / 2 + 30);
-
   // Set up VGA emulator. Requires libsdl2-dev
 
-  if (EMULATING_VGA) {
-    if (VGAEmulator_init(&emulator, framebuffer))
+  if (EMULATING_VGA)
+    if (VGAEmulator_init(&emulator, framebuffer, &controller_state))
       return 1;
-  }
 
   while (1) {
-    sleep(1);
+    // Fresh start
+    memset(next_frame, 0, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+    // Draw the Guitar state line
+    draw_sprite(controller_state.green ? play_circles_held.green
+                                       : play_circles_released.green,
+                next_frame, color_cols_x.green, WINDOW_HEIGHT - 12);
+    draw_sprite(controller_state.red ? play_circles_held.red
+                                     : play_circles_released.red,
+                next_frame, color_cols_x.red, WINDOW_HEIGHT - 12);
+    draw_sprite(controller_state.yellow ? play_circles_held.yellow
+                                        : play_circles_released.yellow,
+                next_frame, color_cols_x.yellow, WINDOW_HEIGHT - 12);
+    draw_sprite(controller_state.blue ? play_circles_held.blue
+                                      : play_circles_released.blue,
+                next_frame, color_cols_x.blue, WINDOW_HEIGHT - 12);
+    draw_sprite(controller_state.orange ? play_circles_held.orange
+                                        : play_circles_released.orange,
+                next_frame, color_cols_x.orange, WINDOW_HEIGHT - 12);
+
+    // Push next frame to buffer
+    memcpy(framebuffer, next_frame, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
   }
 
   if (EMULATING_VGA)
