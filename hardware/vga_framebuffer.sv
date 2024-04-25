@@ -5,46 +5,67 @@
  * Columbia University
  */
 
-module vga_ball(input logic        clk,
+module vga_framebuffer(input logic        clk,
 	        input logic 	   reset,
-		input logic [7:0]  writedata,
+		input logic [31:0] writedata, // 8 bits / pixel so we get 4 pixels at a time.
 		input logic 	   write,
 		input 		   chipselect,
-		input logic [2:0]  address,
-
+		input logic [15:0]  address,  // 18000 chunks of 4 pixels at a time
 		output logic [7:0] VGA_R, VGA_G, VGA_B,
 		output logic 	   VGA_CLK, VGA_HS, VGA_VS,
 		                   VGA_BLANK_n,
 		output logic 	   VGA_SYNC_n);
 
    logic [10:0]	   hcount;
-   logic [9:0]     vcount;
+   logic [9:0]     vcount, pixel_col;
 
    logic [7:0] 	   background_r, background_g, background_b;
 	
    vga_counters counters(.clk50(clk), .*);
 
-   always_ff @(posedge clk)
-     if (reset) begin
-	background_r <= 8'h0;
-	background_g <= 8'h0;
-	background_b <= 8'h80;
-     end else if (chipselect && write)
-       case (address)
-	 3'h0 : background_r <= writedata;
-	 3'h1 : background_g <= writedata;
-	 3'h2 : background_b <= writedata;
-       endcase
+   logic [1215:0] framebuffer [479:0]; // 480 rows, each with 150 pixels * 8 bits / pixel, rounded up to the nearest chunk of 64. So each row gets 38 chunks of 32 bits
+
+   assign pixel_col = hcount[10:1] - 10'd245;
+
+   always_ff @(posedge clk) begin
+        if (reset) begin
+         // Reset memory and other signals as needed
+	 background_r <= 8'h0;
+         background_g <= 8'h0;
+         background_b <= 8'h80;
+	 // Set default value in framebuffer
+	 for (int row = 0; row < 480; row++) begin
+	    for (int pixel = 0; pixel < 150; pixel++)
+		framebuffer[row][pixel * 8 +: 8] = pixel % 3;
+	    for (int buffer_pixel = 150; buffer_pixel < 152; buffer_pixel++)
+		 // Give a default value to silence warnings
+		framebuffer[row][buffer_pixel * 8 +: 8] = 8'd0;
+	 end
+        end else begin
+            if (chipselect && write) begin
+                if (address < 16'd38) begin
+		   // 38 chunks per row
+	           framebuffer[0][address * 32 +: 32] = writedata[31:0];
+		end
+            end
+        end
+    end
 
    always_comb begin
       {VGA_R, VGA_G, VGA_B} = {8'h0, 8'h0, 8'h0};
-      if (VGA_BLANK_n )
-	if (hcount[10:6] == 5'd3 &&
-	    vcount[9:5] == 5'd3)
-	  {VGA_R, VGA_G, VGA_B} = {8'hff, 8'hff, 8'hff};
-	else
-	  {VGA_R, VGA_G, VGA_B} =
-             {background_r, background_g, background_b};
+      if (VGA_BLANK_n) begin
+	if (hcount[10:1] >= 10'd245 && hcount[10:1] < 10'd395 && vcount[9:0] < 10'd480) begin
+	   // We are inside the 150 x 480 region of interest. Map the 8-bit value to a color
+	    case (framebuffer[vcount[9:0]][pixel_col * 8 +: 8])
+               8'd00: {VGA_R, VGA_G, VGA_B} = 24'hff0000; // Option 1
+               8'd01: {VGA_R, VGA_G, VGA_B} = 24'h00ff00; // Option 2
+	       8'd02: {VGA_R, VGA_G, VGA_B} = 24'h0000ff; // Option 3
+               default: {VGA_R, VGA_G, VGA_B} = 24'hffffff; // Default to white
+            endcase
+	end else begin 
+	   {VGA_R, VGA_G, VGA_B} = {background_r, background_g, background_b};
+        end	
+      end
    end
 	       
 endmodule
