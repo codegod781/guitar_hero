@@ -6,60 +6,71 @@
  */
 
 module vga_framebuffer(input logic        clk,
-	        input logic 	   reset,
-		input logic [31:0] writedata, // 8 bits / pixel so we get 4 pixels at a time.
+	        input logic 	   reset,      
+		input logic [31:0]  writedata, // Format: {7 unused bits, 17-bit pixel number, 8-bit pixel data}
 		input logic 	   write,
 		input 		   chipselect,
-		input logic [15:0]  address,  // 18000 chunks of 4 pixels at a time
+		input logic [7:0] address, // Unused, because a 17-bit address is weird
+
 		output logic [7:0] VGA_R, VGA_G, VGA_B,
 		output logic 	   VGA_CLK, VGA_HS, VGA_VS,
 		                   VGA_BLANK_n,
-		output logic 	   VGA_SYNC_n);
+		output logic 	   VGA_SYNC_n,
+		output logic [9:0]  LEDR);
 
    logic [10:0]	   hcount;
-   logic [9:0]     vcount, pixel_col;
+   logic [9:0]     vcount;
+   logic [16:0]    read_addr, write_addr, pixel_row, pixel_col;
 
    logic [7:0] 	   background_r, background_g, background_b;
-	
+   logic [7:0]    write_data, pixel_data;
+   logic write_mem;
+   
+   assign pixel_row = ({{7{1'b0}}, vcount} * 17'd150);
+   assign pixel_col = hcount[10:1] >= 10'd245 ? (({{7{1'b0}}, hcount[10:1]}) - 17'd245) : 17'd0;
+   assign read_addr = pixel_row + pixel_col;
+
    vga_counters counters(.clk50(clk), .*);
 
-   logic [1215:0] framebuffer [479:0]; // 480 rows, each with 150 pixels * 8 bits / pixel, rounded up to the nearest chunk of 64. So each row gets 38 chunks of 32 bits
 
-   assign pixel_col = hcount[10:1] - 10'd245;
+   vga_mem mem(
+      .clk(clk),
+      .ra(read_addr),
+      .wa(write_addr),
+      .write(write_mem),
+      .wd(write_data),
+      .rd(pixel_data)
+   );
 
-   always_ff @(posedge clk) begin
-        if (reset) begin
-         // Reset memory and other signals as needed
-	 background_r <= 8'h0;
-         background_g <= 8'h0;
-         background_b <= 8'h80;
-	 // Set default value in framebuffer
-	 for (int row = 0; row < 480; row++) begin
-	    for (int pixel = 0; pixel < 150; pixel++)
-		framebuffer[row][pixel * 8 +: 8] = pixel % 3;
-	    for (int buffer_pixel = 150; buffer_pixel < 152; buffer_pixel++)
-		 // Give a default value to silence warnings
-		framebuffer[row][buffer_pixel * 8 +: 8] = 8'd0;
-	 end
-        end else begin
-            if (chipselect && write) begin
-                if (address < 16'd38) begin
-		   // 38 chunks per row
-	           framebuffer[0][address * 32 +: 32] = writedata[31:0];
-		end
-            end
+   always_ff @(posedge clk)
+     if (reset) begin
+	background_r <= 8'h0;
+	background_g <= 8'h0;
+	background_b <= 8'h80;
+        write_addr <= 17'h0;
+        write_data <= 8'h0;
+        write_mem <= 1'd0;
+     end else begin
+        if (write_mem)
+           write_mem <= 1'd0;
+        if (chipselect && write) begin
+           //write_addr <= 17'd5;
+           write_addr <= writedata[24:8]; // Extracting 17-bit pixel number from writedata
+           write_data <= writedata[7:0];  // Extracting 8-bit pixel data from writedata
+           write_mem <= 1'd1;
         end
-    end
+     end
+	
 
    always_comb begin
       {VGA_R, VGA_G, VGA_B} = {8'h0, 8'h0, 8'h0};
+      LEDR[9:0] = {10{1'd0}};
       if (VGA_BLANK_n) begin
-	if (hcount[10:1] >= 10'd245 && hcount[10:1] < 10'd395 && vcount[9:0] < 10'd480) begin
-	   // We are inside the 150 x 480 region of interest. Map the 8-bit value to a color
-	    case (framebuffer[vcount[9:0]][pixel_col * 8 +: 8])
-               8'd00: {VGA_R, VGA_G, VGA_B} = 24'hff0000; // Option 1
-               8'd01: {VGA_R, VGA_G, VGA_B} = 24'h00ff00; // Option 2
-	       8'd02: {VGA_R, VGA_G, VGA_B} = 24'h0000ff; // Option 3
+        if (hcount[10:1] >= 10'd245 && hcount[10:1] < 10'd395 && vcount[9:0] < 10'd480) begin
+	     case (pixel_data)
+               8'd01: {VGA_R, VGA_G, VGA_B} = 24'hff0000; // Option 1
+               8'd02: {VGA_R, VGA_G, VGA_B} = 24'h00ff00; // Option 2
+	       8'd03: {VGA_R, VGA_G, VGA_B} = 24'h0000ff; // Option 3
                default: {VGA_R, VGA_G, VGA_B} = 24'hffffff; // Default to white
             endcase
 	end else begin 
@@ -68,6 +79,20 @@ module vga_framebuffer(input logic        clk,
       end
    end
 	       
+endmodule
+
+module vga_mem(
+   input logic clk,
+   input logic [16:0] ra, wa,
+   input logic write,
+   input logic [7:0] wd,
+   output logic [7:0] rd);
+   
+   logic [7:0] mem [16:0]; // 72,000 pixels, 1 B per pixel
+   always_ff @(posedge clk) begin
+   if (write) mem[wa] <= wd;
+   rd <= mem[ra];
+   end
 endmodule
 
 module vga_counters(
