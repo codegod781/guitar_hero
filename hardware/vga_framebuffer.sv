@@ -8,10 +8,10 @@
 module vga_framebuffer (
     input logic clk,
     input logic reset,
-    input logic [31:0] writedata,  // Format: {7 unused bits, 17-bit pixel number, 8-bit pixel data}
+    input logic [31:0] writedata,  // Format: {9 unused bits, 17-bit pixel number, 6-bit pixel data}
     input logic write,
     input chipselect,
-    input logic [7:0] address,  // Unused, because a 17-bit address is weird
+    input logic [1:0] address,  // Unused, because a 17-bit address is weird
 
     output logic [7:0] VGA_R,
     VGA_G,
@@ -20,8 +20,7 @@ module vga_framebuffer (
     VGA_HS,
     VGA_VS,
     VGA_BLANK_n,
-    output logic       VGA_SYNC_n,
-    output logic [9:0] LEDR
+    output logic       VGA_SYNC_n
 );
 
   logic [10:0] hcount;
@@ -31,7 +30,7 @@ module vga_framebuffer (
   logic [16:0] read_addr, write_addr;
 
   logic [7:0] background_r, background_g, background_b;
-  logic [7:0] write_data, pixel_data;
+  logic [5:0] write_data, pixel_data;
   logic write_mem;
 
   assign pixel_y   = vcount[8:0];
@@ -65,8 +64,8 @@ module vga_framebuffer (
       write_mem <= 1'd0;
       if (chipselect && write) begin
         //write_addr <= 17'd5;
-        write_addr <= writedata[24:8];  // Extracting 17-bit pixel number from writedata
-        write_data <= writedata[7:0];  // Extracting 8-bit pixel data from writedata
+        write_addr <= writedata[22:6];  // Extracting 17-bit pixel number from writedata
+        write_data <= writedata[5:0];  // Extracting 8-bit pixel data from writedata
         write_mem  <= 1'd1;
       end
     end
@@ -74,13 +73,12 @@ module vga_framebuffer (
 
   always_comb begin
     {VGA_R, VGA_G, VGA_B} = {8'h0, 8'h0, 8'h0};
-    LEDR[9:0] = {10{1'd0}};
     if (VGA_BLANK_n) begin
       if (hcount[10:1] >= 10'd245 && hcount[10:1] < 10'd395 && vcount[9:0] < 10'd480) begin
         case (pixel_data)
-          8'd01:   {VGA_R, VGA_G, VGA_B} = 24'hff0000;  // Option 1
-          8'd02:   {VGA_R, VGA_G, VGA_B} = 24'h00ff00;  // Option 2
-          8'd03:   {VGA_R, VGA_G, VGA_B} = 24'h0000ff;  // Option 3
+          6'd01:   {VGA_R, VGA_G, VGA_B} = 24'hff0000;  // Option 1
+          6'd02:   {VGA_R, VGA_G, VGA_B} = 24'h00ff00;  // Option 2
+          6'd03:   {VGA_R, VGA_G, VGA_B} = 24'h0000ff;  // Option 3
           default: {VGA_R, VGA_G, VGA_B} = 24'hffffff;  // Default to white
         endcase
       end else begin
@@ -95,11 +93,11 @@ module vga_mem (
     input logic clk,
     input logic [16:0] ra, wa,
     input logic write,
-    input logic [7:0] wd,
-    output logic [7:0] rd
+    input logic [5:0] wd,
+    output logic [5:0] rd
 );
 
-  logic [7:0] data[71999:0];  // 72,000 pixels, 1 B per pixel
+  logic [5:0] data[122775:0];  // 480 rows * 256 offset / row, plus up to 150 col offset 
   always_ff @(posedge clk) begin
     if (write) data[wa] <= wd;
     rd <= data[ra];
