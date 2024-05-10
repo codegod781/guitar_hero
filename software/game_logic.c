@@ -1,4 +1,4 @@
-#include "VGA.h"
+#include "colors.h"
 #include "global_consts.h"
 #include "guitar_state.h"
 #include "sprites.h"
@@ -8,29 +8,6 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-// Color definitions (hardcoded).
-// Inspired by https://oaksstudio.itch.io/guitarheroui, recreated from scratch
-circle_colors green_colors = {.white = {255, 255, 255, 255},
-                              .light_gray = {20, 211, 69, 255},
-                              .middle_gray = {17, 161, 50, 255},
-                              .dark_gray = {16, 162, 55, 255}};
-circle_colors red_colors = {.white = {255, 255, 255, 255},
-                            .light_gray = {211, 54, 47, 255},
-                            .middle_gray = {154, 42, 38, 255},
-                            .dark_gray = {155, 41, 41, 255}};
-circle_colors yellow_colors = {.white = {255, 255, 255, 255},
-                               .light_gray = {254, 243, 53, 255},
-                               .middle_gray = {197, 189, 26, 255},
-                               .dark_gray = {207, 189, 61, 255}};
-circle_colors blue_colors = {.white = {255, 255, 255, 255},
-                             .light_gray = {83, 117, 224, 255},
-                             .middle_gray = {59, 89, 175, 255},
-                             .dark_gray = {64, 89, 171, 255}};
-circle_colors orange_colors = {.white = {255, 255, 255, 255},
-                               .light_gray = {218, 86, 43, 255},
-                               .middle_gray = {139, 53, 24, 255},
-                               .dark_gray = {143, 55, 25, 255}};
 
 struct {
   int green;
@@ -44,9 +21,34 @@ int EMULATING_VGA = 1;
 int SCREEN_LINE_LENGTH;
 
 int main() {
+  // Color definitions (hardcoded).
+  // Inspired by https://oaksstudio.itch.io/guitarheroui, recreated from scratch
+  circle_colors green_colors = {.white = palette[WHITE],
+                                .light_gray = palette[LIGHT_GREEN],
+                                .middle_gray = palette[MIDDLE_GREEN],
+                                .dark_gray = palette[DARK_GREEN]};
+
+  circle_colors red_colors = {.white = palette[WHITE],
+                              .light_gray = palette[LIGHT_RED],
+                              .middle_gray = palette[MIDDLE_RED],
+                              .dark_gray = palette[DARK_RED]};
+
+  circle_colors yellow_colors = {.white = palette[WHITE],
+                                 .light_gray = palette[LIGHT_YELLOW],
+                                 .middle_gray = palette[MIDDLE_YELLOW],
+                                 .dark_gray = palette[DARK_YELLOW]};
+
+  circle_colors blue_colors = {.white = palette[WHITE],
+                               .light_gray = palette[LIGHT_BLUE],
+                               .middle_gray = palette[MIDDLE_BLUE],
+                               .dark_gray = palette[DARK_BLUE]};
+
+  circle_colors orange_colors = {.white = palette[WHITE],
+                                 .light_gray = palette[LIGHT_ORANGE],
+                                 .middle_gray = palette[MIDDLE_ORANGE],
+                                 .dark_gray = palette[DARK_ORANGE]};
   // 32 bits/pixel = 4 B/pixel
   unsigned char *framebuffer, *next_frame;
-  screen_info screen;
   VGAEmulator emulator;
 
   guitar_state controller_state;
@@ -54,20 +56,13 @@ int main() {
 
   if (EMULATING_VGA) {
     printf("Running in VGA EMULATION MODE\n");
-    if ((framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
-      perror("Error allocating framebuffer!\n");
-      return 1;
-    }
-    SCREEN_LINE_LENGTH = WINDOW_WIDTH * 4;
-  } else {
-    framebuffer = fbopen();
-    screen = get_fb_screen_info();
-
-    SCREEN_LINE_LENGTH = screen.fb_finfo->line_length;
-
-    printf("X resolution: %d\n", screen.fb_vinfo->xres);
-    printf("Y resolution: %d\n", screen.fb_vinfo->yres);
   }
+  if ((framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
+    perror("Error allocating framebuffer!\n");
+    return 1;
+  }
+
+  SCREEN_LINE_LENGTH = WINDOW_WIDTH * 4;
 
   if ((next_frame = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
     perror("Error allocating next_frame!\n");
@@ -83,11 +78,11 @@ int main() {
       generate_circles(GH_circle_base, green_colors, red_colors, yellow_colors,
                        blue_colors, orange_colors);
   // Generate the sprites for the indicators to play:
-  green_colors.white.A = 0;
-  red_colors.white.A = 0;
-  yellow_colors.white.A = 0;
-  blue_colors.white.A = 0;
-  orange_colors.white.A = 0;
+  green_colors.white = BACKGROUND_COLOR;
+  red_colors.white = BACKGROUND_COLOR;
+  yellow_colors.white = BACKGROUND_COLOR;
+  blue_colors.white = BACKGROUND_COLOR;
+  orange_colors.white = BACKGROUND_COLOR;
   generated_circles play_circles_released =
       generate_circles(GH_circle_base, green_colors, red_colors, yellow_colors,
                        blue_colors, orange_colors);

@@ -1,5 +1,6 @@
 #ifndef SPRITES_H
 #define SPRITES_H
+#include "colors.h"
 #include <png.h>
 
 typedef struct {
@@ -19,14 +20,6 @@ typedef struct {
   sprite orange;
 } generated_circles;
 
-typedef struct {
-  unsigned char R;
-  unsigned char G;
-  unsigned char B;
-  unsigned char A;
-} RGBA;
-
-
 #define DARK_GRAY_THRESHOLD 70
 #define MIDDLE_GRAY_THRESHOLD 125
 #define LIGHT_GRAY_THRESHOLD 180
@@ -41,10 +34,10 @@ typedef struct {
 // This assumes you're providing a grayscale image and uses average_pixel().
 // Design your base correctly!
 typedef struct {
-  RGBA white;
-  RGBA light_gray;
-  RGBA middle_gray;
-  RGBA dark_gray;
+  RGB white;
+  RGB light_gray;
+  RGB middle_gray;
+  RGB dark_gray;
 } circle_colors;
 
 // Load a sprite from a filename

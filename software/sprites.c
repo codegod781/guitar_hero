@@ -183,7 +183,7 @@ sprite color_circle(sprite circle_base, circle_colors colors) {
           &(circle_base.pixel_buffer[y * circle_base.B_per_row * 4 + x * 4]);
 
       int pixel_avg = average_pixel(px);
-      RGBA pixel_color;
+      RGB pixel_color;
 
       if (WHITE_THRESHOLD - COLOR_SELECTION_RANGE <= pixel_avg &&
           pixel_avg <= WHITE_THRESHOLD + COLOR_SELECTION_RANGE)
@@ -204,7 +204,7 @@ sprite color_circle(sprite circle_base, circle_colors colors) {
       px[0] = pixel_color.R;
       px[1] = pixel_color.G;
       px[2] = pixel_color.B;
-      px[3] = pixel_color.A;
+      px[3] = 255;
     }
   }
 
