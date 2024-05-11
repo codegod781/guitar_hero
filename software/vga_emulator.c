@@ -59,7 +59,7 @@ void *handle_events(void *args) {
           emulator->gs->orange = new_value;
           break;
         case SDLK_SPACE:
-          emulator->gs->strum_bar_down = new_value;
+          emulator->gs->strum = new_value;
           break;
         }
       }

@@ -7,7 +7,7 @@ typedef struct {
   int yellow;
   int blue;
   int orange;
-  int strum_bar_down;
+  int strum;
 } guitar_state;
 
 void init_guitar_state(guitar_state *gs);

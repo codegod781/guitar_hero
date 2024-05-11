@@ -1,12 +1,15 @@
 #include "colors.h"
 #include "global_consts.h"
 #include "guitar_state.h"
+#include "song_data.h"
 #include "sprites.h"
 #include "vga_emulator.h"
 #include <SDL2/SDL_blendmode.h>
 #include <linux/fb.h>
+#include <math.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 struct {
@@ -19,6 +22,24 @@ struct {
 
 int EMULATING_VGA = 1;
 int SCREEN_LINE_LENGTH;
+
+long long current_time_in_ms() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  long long ms =
+      (tv.tv_sec * 1000LL) +
+      (tv.tv_usec /
+       1000); // Convert seconds to ms and add microseconds converted to ms
+  return ms;
+}
+
+int hit_notes(guitar_state controller_state, note_row notes) {
+  return controller_state.green == notes.green &&
+         controller_state.red == notes.red &&
+         controller_state.yellow == notes.yellow &&
+         controller_state.blue == notes.blue &&
+         controller_state.orange == notes.orange;
+}
 
 int main() {
   // Color definitions (hardcoded).
@@ -57,6 +78,7 @@ int main() {
   if (EMULATING_VGA) {
     printf("Running in VGA EMULATION MODE\n");
   }
+
   if ((framebuffer = malloc(WINDOW_WIDTH * WINDOW_HEIGHT * 4)) == NULL) {
     perror("Error allocating framebuffer!\n");
     return 1;
@@ -101,29 +123,136 @@ int main() {
     if (VGAEmulator_init(&emulator, framebuffer, &controller_state))
       return 1;
 
+  // TODO: Load song note rows from file instead of hard-coded
+  note_row *song_rows;
+  int current_bottom_row_idx = 0, num_note_rows = 100;
+  double current_bottom_row_Y = 0;
+  int beat_duration = round((60.0 / SONG_BPM) * 1000);
+
+  // The Y coordinate of the middle of the guitar state line
+  int guitar_state_line_Y = WINDOW_HEIGHT - 15;
+  // How many pixels of "margin" (top and bottom) to apply to each note
+  int note_row_veritcal_padding = 8;
+  // THe total height including the 24x24 px sprite and the margin
+  int note_height_px = 24 + 2 * note_row_veritcal_padding;
+  // How many pixels each note row has to move down the screen in one ms
+  double note_row_pixels_per_ms = (double)(note_height_px) / beat_duration;
+
+  srand(time(NULL));
+
+  song_rows = malloc(num_note_rows * sizeof(note_row));
+  if (song_rows == NULL) {
+    fprintf(stderr, "song_rows memory allocation failed.\n");
+    return 1;
+  }
+
+  // Initialize each note_row with random values
+  for (int i = 0; i < num_note_rows; i++) {
+    song_rows[i].green = 1; // rand() % 2;
+    song_rows[i].red = rand() % 2;
+    song_rows[i].yellow = rand() % 2;
+    song_rows[i].blue = rand() % 2;
+    song_rows[i].orange = rand() % 2;
+  }
+
+  printf("---SONG INFORMATION---\n");
+  printf("BPM: %d\n", SONG_BPM);
+  printf("Beat duration: %dms\n", beat_duration);
+  printf("Note row pixels/ms: %f\n", note_row_pixels_per_ms);
+
+  // TODO: any start menu here
+
+  long long song_start_time = current_time_in_ms();
+  long long last_draw_time = song_start_time;
+
   while (1) {
     // Fresh start
     memset(next_frame, 0, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+
+    long long time_delta = current_time_in_ms() - last_draw_time;
+    last_draw_time = current_time_in_ms();
+
+    for (int row_on_screen = 0;
+         row_on_screen < WINDOW_HEIGHT / note_height_px + 1; row_on_screen++) {
+      if (current_bottom_row_idx + row_on_screen >= num_note_rows)
+        break; // We've run out of notes
+
+      note_row row = song_rows[current_bottom_row_idx + row_on_screen];
+
+      int row_y = round(current_bottom_row_Y - note_height_px * row_on_screen);
+
+      if (row.green)
+        draw_sprite(note_circles.green, next_frame, color_cols_x.green, row_y);
+      if (row.red)
+        draw_sprite(note_circles.red, next_frame, color_cols_x.red, row_y);
+      if (row.yellow)
+        draw_sprite(note_circles.yellow, next_frame, color_cols_x.yellow,
+                    row_y);
+      if (row.blue)
+        draw_sprite(note_circles.blue, next_frame, color_cols_x.blue, row_y);
+      if (row.orange)
+        draw_sprite(note_circles.orange, next_frame, color_cols_x.orange,
+                    row_y);
+    }
+
+    current_bottom_row_Y += note_row_pixels_per_ms * time_delta;
+    if (controller_state.strum) {
+      // Is the bottom note in a playable range, and did we try?
+      if (current_bottom_row_Y <= guitar_state_line_Y + 12 &&
+          current_bottom_row_Y >= guitar_state_line_Y - 12) {
+        if (hit_notes(controller_state, song_rows[current_bottom_row_idx])) {
+          // We hit the note!
+          current_bottom_row_idx++;
+          current_bottom_row_Y -= (24 + 2 * note_row_veritcal_padding);
+        } else
+          printf("MISS\n");
+      } else {
+        printf("MISS (None to hit)\n");
+      }
+    }
+
+    // Is it time to shift the buffer because a note has gone off-screen?
+    if (round(current_bottom_row_Y) >= WINDOW_HEIGHT + 13) {
+      // The bottom row is off screen
+      current_bottom_row_idx++;
+      current_bottom_row_Y -= (24 + 2 * note_row_veritcal_padding);
+
+      if (current_bottom_row_idx >= num_note_rows) {
+        // We are done with the game
+        // TODO break;
+        break;
+      }
+    }
+
+    // printf("Elapsed time: %llums\n", last_draw_time - song_start_time);
+    // printf("current_bottom_row_Y: %f\n", current_bottom_row_Y);
+    // printf("current_bottom_row_idx: %d\n", current_bottom_row_idx);
+
     // Draw the Guitar state line
     draw_sprite(controller_state.green ? play_circles_held.green
                                        : play_circles_released.green,
-                next_frame, color_cols_x.green, WINDOW_HEIGHT - 12);
+                next_frame, color_cols_x.green, guitar_state_line_Y);
     draw_sprite(controller_state.red ? play_circles_held.red
                                      : play_circles_released.red,
-                next_frame, color_cols_x.red, WINDOW_HEIGHT - 12);
+                next_frame, color_cols_x.red, guitar_state_line_Y);
     draw_sprite(controller_state.yellow ? play_circles_held.yellow
                                         : play_circles_released.yellow,
-                next_frame, color_cols_x.yellow, WINDOW_HEIGHT - 12);
+                next_frame, color_cols_x.yellow, guitar_state_line_Y);
     draw_sprite(controller_state.blue ? play_circles_held.blue
                                       : play_circles_released.blue,
-                next_frame, color_cols_x.blue, WINDOW_HEIGHT - 12);
+                next_frame, color_cols_x.blue, guitar_state_line_Y);
     draw_sprite(controller_state.orange ? play_circles_held.orange
                                         : play_circles_released.orange,
-                next_frame, color_cols_x.orange, WINDOW_HEIGHT - 12);
+                next_frame, color_cols_x.orange, guitar_state_line_Y);
 
     // Push next frame to buffer
     memcpy(framebuffer, next_frame, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
   }
+
+  // TODO: game end
+
+  // TODO: remove
+  free(song_rows);
 
   if (EMULATING_VGA)
     VGAEmulator_destroy(&emulator);

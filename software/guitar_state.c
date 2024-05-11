@@ -10,5 +10,5 @@ void init_guitar_state(guitar_state *gs) {
   gs->yellow = 0;
   gs->blue = 0;
   gs->orange = 0;
-  gs->strum_bar_down = 0;
+  gs->strum = 0;
 }

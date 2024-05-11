@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -std=c99 -D_XOPEN_SOURCE=600
-LDFLAGS=-lSDL2 -lpthread -lpng
+LDFLAGS=-lSDL2 -lpthread -lpng -lm
 
 SRCS=game_logic.c sprites.c vga_emulator.c guitar_state.c colors.c
 OBJS=$(SRCS:.c=.o)

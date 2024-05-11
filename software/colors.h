@@ -37,6 +37,6 @@ int get_color_from_rgb(RGB color); // Maps an RGB to an int, or returns -1 if no
 
 extern RGB palette[COLOR_COUNT]; // Color palette
 
-#define BACKGROUND_COLOR (RGB){0, 0, 0};
+#define BACKGROUND_COLOR palette[BLACK];
 
 #endif /* COLORS_H */
