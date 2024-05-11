@@ -48,45 +48,12 @@ struct framebuffer_dev {
   void __iomem *virtbase; /* Where registers can be accessed in memory */
 } dev;
 
-uint32_t pixel_writedata(unsigned char pixel_color, int pixel_row,
-                         int pixel_col) {
-  // Make sure pixel_color fits into 6 bits
-  pixel_color &= 0x3F;
-
-  // Make sure pixel_col fits into 8 bits
-  pixel_col &= 0xFF;
-
-  // Make sure pixel_row fits into 9 bits
-  pixel_row &= 0x1FF;
-
-  // Combine the values
-  uint32_t result = 0;
-  result |= (uint32_t)pixel_color;       // 6 least significant bits
-  result |= ((uint32_t)pixel_col << 6);  // Next 8 bits
-  result |= ((uint32_t)pixel_row << 14); // Next 9 bits
-
-  return result;
-}
-
 /*
  * Write segments of a single digit
  * Assumes digit is in range and the device information has been set up
  */
-static void write_background(unsigned char *framebuffer) {
-  int pixel_row, pixel_col;
-  uint32_t writedata;
-  for (pixel_row = 0; pixel_row < WINDOW_HEIGHT; pixel_row++) {
-    for (pixel_col = 0; pixel_col < WINDOW_WIDTH; pixel_col++) {
-      unsigned char *pixel =
-          framebuffer + (pixel_row * WINDOW_WIDTH + pixel_col) * 4;
-
-      RGB pixel_rgb = {pixel[2], pixel[1], pixel[0]};
-
-      writedata =
-          pixel_writedata(get_color_from_rgb(pixel_rgb), pixel_row, pixel_col);
-      iowrite32(writedata, FIRST_CHUNK(dev.virtbase));
-    }
-  }
+static void write_background(uint32_t writedata) {
+  iowrite32(writedata, FIRST_CHUNK(dev.virtbase));
 }
 
 /*
@@ -99,11 +66,11 @@ static long vga_framebuffer_ioctl(struct file *f, unsigned int cmd,
   vga_framebuffer_arg_t vfba;
 
   switch (cmd) {
-  case VGA_FRAMEBUFFER_UPATE:
+  case VGA_FRAMEBUFFER_UPDATE:
     if (copy_from_user(&vfba, (vga_framebuffer_arg_t *)arg,
                        sizeof(vga_framebuffer_arg_t)))
       return -EACCES;
-    write_background(vfba.framebuffer);
+    write_background(vfba.pixel_writedata);
     break;
 
   default:
