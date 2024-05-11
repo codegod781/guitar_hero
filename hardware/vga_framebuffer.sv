@@ -76,11 +76,28 @@ module vga_framebuffer (
     if (VGA_BLANK_n) begin
       if (hcount[10:1] >= 10'd245 && hcount[10:1] < 10'd395 && vcount[9:0] < 10'd480) begin
         case (pixel_data)
-          6'd01:   {VGA_R, VGA_G, VGA_B} = 24'hff0000;  // Option 1
-          6'd02:   {VGA_R, VGA_G, VGA_B} = 24'h00ff00;  // Option 2
-          6'd03:   {VGA_R, VGA_G, VGA_B} = 24'h0000ff;  // Option 3
-          default: {VGA_R, VGA_G, VGA_B} = 24'hffffff;  // Default to white
-        endcase
+	  6'd0: {VGA_R, VGA_G, VGA_B} = 24'h000000; // Black
+	  6'd1: {VGA_R, VGA_G, VGA_B} = 24'hffffff; // White
+	  6'd2: {VGA_R, VGA_G, VGA_B} = 24'hff0000; // Red
+	  6'd3: {VGA_R, VGA_G, VGA_B} = 24'h00ff00; // Green
+	  6'd4: {VGA_R, VGA_G, VGA_B} = 24'h0000ff; // Blue
+	  6'd5: {VGA_R, VGA_G, VGA_B} = 24'h14d345; // Light_green
+	  6'd6: {VGA_R, VGA_G, VGA_B} = 24'h11a132; // Middle_green
+	  6'd7: {VGA_R, VGA_G, VGA_B} = 24'h10a237; // Dark_green
+	  6'd8: {VGA_R, VGA_G, VGA_B} = 24'hd3362f; // Light_red
+	  6'd9: {VGA_R, VGA_G, VGA_B} = 24'h9a2a26; // Middle_red
+	  6'd10: {VGA_R, VGA_G, VGA_B} = 24'h9b2929; // Dark_red
+	  6'd11: {VGA_R, VGA_G, VGA_B} = 24'hfef335; // Light_yellow
+	  6'd12: {VGA_R, VGA_G, VGA_B} = 24'hc5bd1a; // Middle_yellow
+	  6'd13: {VGA_R, VGA_G, VGA_B} = 24'hcfbd3d; // Dark_yellow
+	  6'd14: {VGA_R, VGA_G, VGA_B} = 24'h5375e0; // Light_blue
+	  6'd15: {VGA_R, VGA_G, VGA_B} = 24'h3b59af; // Middle_blue
+	  6'd16: {VGA_R, VGA_G, VGA_B} = 24'h4059ab; // Dark_blue
+	  6'd17: {VGA_R, VGA_G, VGA_B} = 24'hda562b; // Light_orange
+	  6'd18: {VGA_R, VGA_G, VGA_B} = 24'h8b3518; // Middle_orange
+	  6'd19: {VGA_R, VGA_G, VGA_B} = 24'h8f3719; // Dark_orange
+	  default: {VGA_R, VGA_G, VGA_B} = 24'hffffff; // Default to white
+	endcase
       end else begin
         {VGA_R, VGA_G, VGA_B} = {background_r, background_g, background_b};
       end

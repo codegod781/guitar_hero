@@ -268,6 +268,9 @@ module soc_system_top(
      .hps_hps_io_gpio_inst_GPIO54  ( HPS_KEY ),
      .hps_hps_io_gpio_inst_GPIO61  ( HPS_GSENSOR_INT ),
 
+     .notes_ledr_n ( LEDR[7:0] ),
+     .notes_key_n ( KEY ),
+     .notes_pins_n ( GPIO_1[5:0] ),
      .vga_r (VGA_R),
      .vga_g (VGA_G),
      .vga_b (VGA_B),
@@ -303,7 +306,8 @@ module soc_system_top(
    assign FPGA_I2C_SDAT = SW[1] ? SW[0] : 1'bZ;
 
    assign GPIO_0 = SW[1] ? { 36{ SW[0] } } : 36'bZ;
-   assign GPIO_1 = SW[1] ? { 36{ SW[0] } } : 36'bZ;
+   //assign GPIO_1 = SW[1] ? { 36{ SW[0] } } : 36'bZ;
+   assign GPIO_1 [35:6] = SW[1] ? { 36{ SW[0] } } : 36'bZ;
 
    assign HEX0 = { 7{ SW[1] } };
    assign HEX1 = { 7{ SW[2] } };
@@ -314,7 +318,7 @@ module soc_system_top(
 
    assign IRDA_TXD = SW[0];
 
-   assign LEDR = { 10{SW[7]} };
+   assign LEDR[9:8] = { 2{SW[7]} };
 
    assign PS2_CLK = SW[1] ? SW[0] : 1'bZ;
    assign PS2_CLK2 = SW[1] ? SW[0] : 1'bZ;
@@ -322,6 +326,7 @@ module soc_system_top(
    assign PS2_DAT2 = SW[1] ? SW[0] : 1'bZ;
 
    assign TD_RESET_N = SW[0];
+
 
 							          
 endmodule
