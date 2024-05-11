@@ -1,13 +1,13 @@
 ifneq (${KERNELRELEASE},)
 	# KERNELRELEASE defined: we are being compiled as part of the Kernel
-	obj-m := vga_framebuffer.o note_reader.o
+	obj-m := vga_framebuffer.o guitar_reader.o
 endif
 
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -std=c99 -D_XOPEN_SOURCE=600
 LDFLAGS=-lSDL2 -lpthread -lpng -lm
 
-SRCS=game_logic.c sprites.c vga_emulator.c guitar_state.c colors.c
+SRCS=game_logic.c sprites.c vga_emulator.c guitar_state.c colors.c helpers.c
 OBJS=$(SRCS:.c=.o)
 TARGET=game_logic
 

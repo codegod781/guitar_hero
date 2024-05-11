@@ -15,7 +15,7 @@ typedef struct {
 #define VGA_FRAMEBUFFER_MAGIC 'q'
 
 /* ioctls and their arguments */
-#define VGA_FRAMEBUFFER_UPDATE                                                  \
+#define VGA_FRAMEBUFFER_UPDATE                                                 \
   _IOW(VGA_FRAMEBUFFER_MAGIC, 1, vga_framebuffer_arg_t *)
 
 #endif

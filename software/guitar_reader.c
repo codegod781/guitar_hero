@@ -1,18 +1,17 @@
-/* * Device driver for the VGA video generator
+/* Device driver for the Guitar Hero Guitar
  *
+ * Patrick Cronin, Dan Ivanovich, & Kiryl Beliauski
+ * Columbia University CSEE 4840 - Embedded Systems
+ *
+ * Adapted from code by Stephen A. Edwards, Columbia University
  * A Platform device implemented using the misc subsystem
  *
- * Stephen A. Edwards
- * Columbia University
  *
  * References:
  * Linux source: Documentation/driver-model/platform.txt
  *               drivers/misc/arm-charlcd.c
  * http://www.linuxforu.com/tag/linux-device-drivers/
  * http://free-electrons.com/docs/
- *
- * "make" to build
- * insmod guitar_reader.ko
  *
  * Check code style with
  * checkpatch.pl --file --no-tree guitar_reader.c
