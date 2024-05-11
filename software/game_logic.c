@@ -4,6 +4,7 @@
 #include "song_data.h"
 #include "sprites.h"
 #include "vga_emulator.h"
+#include "note_reader.h"
 #include "vga_framebuffer.h"
 #include <SDL2/SDL_blendmode.h>
 #include <linux/fb.h>
@@ -18,6 +19,96 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <pthread.h>
+
+//Call to kernel
+char* read_note() {
+    printf("call to kernel\n");
+    int arg;
+    
+    if (ioctl(notes_fd, VGA_BALL_READ_BACKGROUND, &arg)) {
+        perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
+    }
+    printf("chunk  = %02x\n", arg);
+
+    // Static buffer to hold the string (two characters + null terminator)
+    static char result_string[3];
+
+    // Convert the integer value to a two-digit hexadecimal string
+    snprintf(result_string, 3, "%02x", arg);
+
+    printf("string  = %s\n", result_string);
+
+    return result_string;
+
+}
+
+char *hex_to_binary(char hex) {
+    switch (hex) {
+        case '0': return "0000";
+        case '1': return "0001";
+        case '2': return "0010";
+        case '3': return "0011";
+        case '4': return "0100";
+        case '5': return "0101";
+        case '6': return "0110";
+        case '7': return "0111";
+        case '8': return "1000";
+        case '9': return "1001";
+        case 'a': return "1010";
+        case 'b': return "1011";
+        case 'c': return "1100";
+        case 'd': return "1101";
+        case 'e': return "1110";
+        case 'f': return "1111";
+        default: return NULL;
+    }
+}
+
+// Function to convert a hexadecimal string to its binary representation
+char *hex_string_to_binary(const char *hex_string) {
+    size_t length = strlen(hex_string);
+    size_t binary_length = length * 4; // Each hexadecimal character represents 4 bits
+    char *binary_string = (char *)malloc(binary_length + 1); // +1 for null terminator
+
+    if (binary_string == NULL) {
+        fprintf(stderr, "Memory allocation error\n");
+        return NULL;
+    }
+
+    binary_string[binary_length] = '\0'; // Null terminate the binary string
+
+    for (size_t i = 0; i < length; i++) {
+        char *binary_digit = hex_to_binary(hex_string[i]);
+        if (binary_digit == NULL) {
+            free(binary_string);
+            return NULL;
+        }
+        strcat(binary_string, binary_digit);
+    }
+
+    return binary_string;
+}
+
+
+
+void* read_and_buffer_input(void *arg) {
+    int i = 0;
+    while(true) {  
+      char * guitar_hex= read_note();
+      printf("random hex: %s\n", guitar_hex);
+      char *binary_string = hex_string_to_binary(guitar_hex);
+  //notestate => guitar_state
+      guitar_state note;
+      set_state_guitar(&note, binary_string);
+
+      pthread_mutex_lock(&buffer_mutex);
+      controller_state[i++] = note;
+      pthread_mutex_unlock(&buffer_mutex);
+    }
+    return NULL;
+}
+
 
 int EMULATING_VGA = 0;
 
@@ -109,6 +200,28 @@ void set_note(note_row *note_state, const char *binary_string) {
     note_state->orange = orange;
 }
 
+void set_note_guitar(NoteState *note_state, const char *binary_string) {
+    if (note_state == NULL || binary_string == NULL) {
+        return; // Error handling: Ensure note_state and binary_string are not NULL
+    }
+
+    // Convert the binary string to integer values
+    int green = binary_string[7] - '0';
+    int red = binary_string[6] - '0';
+    int yellow = binary_string[5] - '0';
+    int blue = binary_string[4] - '0';
+    int orange = binary_string[3] - '0';
+    int strum = binary_string[2] - '0';
+
+    // Assign the values to the struct fields
+    note_state->green = !green;
+    note_state->red = !red;
+    note_state->yellow = !yellow;
+    note_state->blue = !blue;
+    note_state->orange = !orange;
+    note_state->strum = strum;
+}
+
 int hit_notes(guitar_state controller_state, note_row notes) {
   return controller_state.green == notes.green &&
          controller_state.red == notes.red &&
@@ -116,6 +229,10 @@ int hit_notes(guitar_state controller_state, note_row notes) {
          controller_state.blue == notes.blue &&
          controller_state.orange == notes.orange;
 }
+
+
+
+
 
 int main() {
   // Color definitions (hardcoded).
@@ -195,11 +312,10 @@ int main() {
                        blue_colors, orange_colors);
 
   // Set up VGA emulator. Requires libsdl2-dev
-
-  if (EMULATING_VGA) {
+  if (EMULATING_VGA)
     if (VGAEmulator_init(&emulator, framebuffer, &controller_state))
       return 1;
-  } else {
+  else {
     // Set up VGA framebuffer connection
     if ((vga_framebuffer_fd = open("/dev/vga_framebuffer", O_RDONLY)) == -1) {
       perror("could not open /dev/vga_framebuffer\n");
@@ -210,7 +326,15 @@ int main() {
         perror("pthread_create(fb_update_thread) failed");
         return 1;
     }
-  } 
+    // Set up guitar state thread
+    // fix mutex
+    if (pthread_create(&tid, NULL, read_and_buffer_input, NULL) != 0) {
+        fprintf(stderr, "Error creating thread\n");
+        return 1;
+    }
+
+    pthread() -> controller_state
+  }
 
   note_row song_rows[NUM_NOTE_ROWS];
 
