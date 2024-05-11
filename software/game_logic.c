@@ -1,121 +1,34 @@
 #include "colors.h"
 #include "global_consts.h"
 #include "guitar_state.h"
+#include "note_reader.h"
 #include "song_data.h"
 #include "sprites.h"
-#include "vga_emulator.h"
-#include "note_reader.h"
 #include "vga_framebuffer.h"
+#include "vga_emulator.h"
 #include <SDL2/SDL_blendmode.h>
+#include <fcntl.h>
 #include <linux/fb.h>
 #include <math.h>
 #include <ncurses.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <string.h>
 #include <pthread.h>
-
-//Call to kernel
-char* read_note() {
-    printf("call to kernel\n");
-    int arg;
-    
-    if (ioctl(notes_fd, VGA_BALL_READ_BACKGROUND, &arg)) {
-        perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
-    }
-    printf("chunk  = %02x\n", arg);
-
-    // Static buffer to hold the string (two characters + null terminator)
-    static char result_string[3];
-
-    // Convert the integer value to a two-digit hexadecimal string
-    snprintf(result_string, 3, "%02x", arg);
-
-    printf("string  = %s\n", result_string);
-
-    return result_string;
-
-}
-
-char *hex_to_binary(char hex) {
-    switch (hex) {
-        case '0': return "0000";
-        case '1': return "0001";
-        case '2': return "0010";
-        case '3': return "0011";
-        case '4': return "0100";
-        case '5': return "0101";
-        case '6': return "0110";
-        case '7': return "0111";
-        case '8': return "1000";
-        case '9': return "1001";
-        case 'a': return "1010";
-        case 'b': return "1011";
-        case 'c': return "1100";
-        case 'd': return "1101";
-        case 'e': return "1110";
-        case 'f': return "1111";
-        default: return NULL;
-    }
-}
-
-// Function to convert a hexadecimal string to its binary representation
-char *hex_string_to_binary(const char *hex_string) {
-    size_t length = strlen(hex_string);
-    size_t binary_length = length * 4; // Each hexadecimal character represents 4 bits
-    char *binary_string = (char *)malloc(binary_length + 1); // +1 for null terminator
-
-    if (binary_string == NULL) {
-        fprintf(stderr, "Memory allocation error\n");
-        return NULL;
-    }
-
-    binary_string[binary_length] = '\0'; // Null terminate the binary string
-
-    for (size_t i = 0; i < length; i++) {
-        char *binary_digit = hex_to_binary(hex_string[i]);
-        if (binary_digit == NULL) {
-            free(binary_string);
-            return NULL;
-        }
-        strcat(binary_string, binary_digit);
-    }
-
-    return binary_string;
-}
-
-
-
-void* read_and_buffer_input(void *arg) {
-    int i = 0;
-    while(true) {  
-      char * guitar_hex= read_note();
-      printf("random hex: %s\n", guitar_hex);
-      char *binary_string = hex_string_to_binary(guitar_hex);
-  //notestate => guitar_state
-      guitar_state note;
-      set_state_guitar(&note, binary_string);
-
-      pthread_mutex_lock(&buffer_mutex);
-      controller_state[i++] = note;
-      pthread_mutex_unlock(&buffer_mutex);
-    }
-    return NULL;
-}
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 int EMULATING_VGA = 0;
 
 int SCREEN_LINE_LENGTH;
-int vga_framebuffer_fd;
+int vga_framebuffer_fd, guitar_fd;
 unsigned char *framebuffer;
-pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER,
+                controller_mutex = PTHREAD_MUTEX_INITIALIZER;
+guitar_state controller_state;
 
 struct {
   int green;
@@ -124,6 +37,132 @@ struct {
   int blue;
   int orange;
 } color_cols_x = {15, 45, 75, 105, 135};
+
+char *read_note() {
+  printf("call to kernel\n");
+  int arg;
+
+  if (ioctl(guitar_fd, VGA_BALL_READ_BACKGROUND, &arg)) {
+    perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
+  }
+  printf("chunk  = %02x\n", arg);
+
+  // Static buffer to hold the string (two characters + null terminator)
+  static char result_string[3];
+
+  // Convert the integer value to a two-digit hexadecimal string
+  snprintf(result_string, 3, "%02x", arg);
+
+  printf("string  = %s\n", result_string);
+
+  return result_string;
+}
+
+char *hex_to_binary(char hex) {
+  switch (hex) {
+  case '0':
+    return "0000";
+  case '1':
+    return "0001";
+  case '2':
+    return "0010";
+  case '3':
+    return "0011";
+  case '4':
+    return "0100";
+  case '5':
+    return "0101";
+  case '6':
+    return "0110";
+  case '7':
+    return "0111";
+  case '8':
+    return "1000";
+  case '9':
+    return "1001";
+  case 'a':
+    return "1010";
+  case 'b':
+    return "1011";
+  case 'c':
+    return "1100";
+  case 'd':
+    return "1101";
+  case 'e':
+    return "1110";
+  case 'f':
+    return "1111";
+  default:
+    return NULL;
+  }
+}
+
+// Function to convert a hexadecimal string to its binary representation
+char *hex_string_to_binary(const char *hex_string) {
+  size_t length = strlen(hex_string);
+  size_t binary_length =
+      length * 4; // Each hexadecimal character represents 4 bits
+  char *binary_string =
+      (char *)malloc(binary_length + 1); // +1 for null terminator
+
+  if (binary_string == NULL) {
+    fprintf(stderr, "Memory allocation error\n");
+    return NULL;
+  }
+
+  binary_string[binary_length] = '\0'; // Null terminate the binary string
+
+  for (size_t i = 0; i < length; i++) {
+    char *binary_digit = hex_to_binary(hex_string[i]);
+    if (binary_digit == NULL) {
+      free(binary_string);
+      return NULL;
+    }
+    strcat(binary_string, binary_digit);
+  }
+
+  return binary_string;
+}
+
+void set_note_guitar(guitar_state *note_state, const char *binary_string) {
+  if (note_state == NULL || binary_string == NULL) {
+    return; // Error handling: Ensure note_state and binary_string are not NULL
+  }
+
+  // Convert the binary string to integer values
+  int green = binary_string[7] - '0';
+  int red = binary_string[6] - '0';
+  int yellow = binary_string[5] - '0';
+  int blue = binary_string[4] - '0';
+  int orange = binary_string[3] - '0';
+  int strum = binary_string[2] - '0';
+
+  // Assign the values to the struct fields
+  note_state->green = !green;
+  note_state->red = !red;
+  note_state->yellow = !yellow;
+  note_state->blue = !blue;
+  note_state->orange = !orange;
+  note_state->strum = strum;
+}
+
+void *read_and_buffer_input(void *arg) {
+  (void) arg; // Suppress unused warning
+
+  while (true) {
+    char *guitar_hex = read_note();
+    printf("random hex: %s\n", guitar_hex);
+    char *binary_string = hex_string_to_binary(guitar_hex);
+
+    guitar_state note;
+    set_note_guitar(&note, binary_string);
+
+    pthread_mutex_lock(&controller_mutex);
+    controller_state = note;
+    pthread_mutex_unlock(&controller_mutex);
+  }
+  return NULL;
+}
 
 long long current_time_in_ms() {
   struct timeval tv;
@@ -156,70 +195,50 @@ uint32_t pixel_writedata(unsigned char pixel_color, int pixel_row,
   return pixel_writedata;
 }
 
-void* update_framebuffer(void* arg) {
-    (void)arg; // Suppress warning
+void *update_framebuffer(void *arg) {
+  (void)arg; // Suppress warning
 
-    while (1) {
-        pthread_mutex_lock(&framebuffer_mutex);
-        for (int pixel_row = 0; pixel_row < WINDOW_HEIGHT; pixel_row++) {
-            for (int pixel_col = 0; pixel_col < WINDOW_WIDTH; pixel_col++) {
-                unsigned char *pixel =
-                    framebuffer + (pixel_row * WINDOW_WIDTH + pixel_col) * 4;
-                RGB pixel_rgb = {pixel[2], pixel[1], pixel[0]};
+  while (1) {
+    pthread_mutex_lock(&framebuffer_mutex);
+    for (int pixel_row = 0; pixel_row < WINDOW_HEIGHT; pixel_row++) {
+      for (int pixel_col = 0; pixel_col < WINDOW_WIDTH; pixel_col++) {
+        unsigned char *pixel =
+            framebuffer + (pixel_row * WINDOW_WIDTH + pixel_col) * 4;
+        RGB pixel_rgb = {pixel[2], pixel[1], pixel[0]};
 
-                vga_framebuffer_arg_t vfba;
-                vfba.pixel_writedata = pixel_writedata(get_color_from_rgb(pixel_rgb), pixel_row, pixel_col);;
+        vga_framebuffer_arg_t vfba;
+        vfba.pixel_writedata = pixel_writedata(get_color_from_rgb(pixel_rgb),
+                                               pixel_row, pixel_col);
+        ;
 
-                if (ioctl(vga_framebuffer_fd, VGA_FRAMEBUFFER_UPDATE, &vfba)) {
-                    perror("ioctl(VGA_FRAMEBUFFER_UPDATE) failed");
-                }
-            }
+        if (ioctl(vga_framebuffer_fd, VGA_FRAMEBUFFER_UPDATE, &vfba)) {
+          perror("ioctl(VGA_FRAMEBUFFER_UPDATE) failed");
         }
-        pthread_mutex_unlock(&framebuffer_mutex);
+      }
     }
-    return NULL;
+    pthread_mutex_unlock(&framebuffer_mutex);
+  }
+  return NULL;
 }
 
 void set_note(note_row *note_state, const char *binary_string) {
-    if (note_state == NULL || binary_string == NULL) {
-        return; // Error handling: Ensure note_state and binary_string are not NULL
-    }
+  if (note_state == NULL || binary_string == NULL) {
+    return; // Error handling: Ensure note_state and binary_string are not NULL
+  }
 
-    // Convert the binary string to integer values
-    int green = binary_string[7] - '0';
-    int red = binary_string[6] - '0';
-    int yellow = binary_string[5] - '0';
-    int blue = binary_string[4] - '0';
-    int orange = binary_string[3] - '0';
+  // Convert the binary string to integer values
+  int green = binary_string[7] - '0';
+  int red = binary_string[6] - '0';
+  int yellow = binary_string[5] - '0';
+  int blue = binary_string[4] - '0';
+  int orange = binary_string[3] - '0';
 
-    // Assign the values to the struct fields
-    note_state->green = green;
-    note_state->red = red;
-    note_state->yellow = yellow;
-    note_state->blue = blue;
-    note_state->orange = orange;
-}
-
-void set_note_guitar(NoteState *note_state, const char *binary_string) {
-    if (note_state == NULL || binary_string == NULL) {
-        return; // Error handling: Ensure note_state and binary_string are not NULL
-    }
-
-    // Convert the binary string to integer values
-    int green = binary_string[7] - '0';
-    int red = binary_string[6] - '0';
-    int yellow = binary_string[5] - '0';
-    int blue = binary_string[4] - '0';
-    int orange = binary_string[3] - '0';
-    int strum = binary_string[2] - '0';
-
-    // Assign the values to the struct fields
-    note_state->green = !green;
-    note_state->red = !red;
-    note_state->yellow = !yellow;
-    note_state->blue = !blue;
-    note_state->orange = !orange;
-    note_state->strum = strum;
+  // Assign the values to the struct fields
+  note_state->green = green;
+  note_state->red = red;
+  note_state->yellow = yellow;
+  note_state->blue = blue;
+  note_state->orange = orange;
 }
 
 int hit_notes(guitar_state controller_state, note_row notes) {
@@ -229,10 +248,6 @@ int hit_notes(guitar_state controller_state, note_row notes) {
          controller_state.blue == notes.blue &&
          controller_state.orange == notes.orange;
 }
-
-
-
-
 
 int main() {
   // Color definitions (hardcoded).
@@ -263,10 +278,9 @@ int main() {
                                  .dark_gray = palette[DARK_ORANGE]};
   // 32 bits/pixel = 4 B/pixel
   unsigned char *next_frame;
-  pthread_t fb_update_thread;
+  pthread_t fb_update_thread, guitar_thread;
   VGAEmulator emulator;
 
-  guitar_state controller_state;
   init_guitar_state(&controller_state);
 
   if (EMULATING_VGA) {
@@ -312,50 +326,53 @@ int main() {
                        blue_colors, orange_colors);
 
   // Set up VGA emulator. Requires libsdl2-dev
-  if (EMULATING_VGA)
+  if (EMULATING_VGA) {
     if (VGAEmulator_init(&emulator, framebuffer, &controller_state))
       return 1;
-  else {
+  } else {
     // Set up VGA framebuffer connection
-    if ((vga_framebuffer_fd = open("/dev/vga_framebuffer", O_RDONLY)) == -1) {
+    if ((vga_framebuffer_fd = open("/dev/vga_framebuffer", O_WRONLY)) == -1) {
       perror("could not open /dev/vga_framebuffer\n");
       return -1;
     }
-  
-    if (pthread_create(&fb_update_thread, NULL, &update_framebuffer, NULL) != 0) {
-        perror("pthread_create(fb_update_thread) failed");
-        return 1;
-    }
-    // Set up guitar state thread
-    // fix mutex
-    if (pthread_create(&tid, NULL, read_and_buffer_input, NULL) != 0) {
-        fprintf(stderr, "Error creating thread\n");
-        return 1;
+
+    if ((guitar_fd = open("/dev/guitar", O_RDONLY)) == -1) {
+      perror("could not open /dev/guitar\n");
+      return -1;
     }
 
-    pthread() -> controller_state
+    if (pthread_create(&fb_update_thread, NULL, &update_framebuffer, NULL) !=
+        0) {
+      perror("pthread_create(fb_update_thread) failed\n");
+      return 1;
+    }
+
+    if (pthread_create(&guitar_thread, NULL, read_and_buffer_input, NULL) !=
+        0) {
+      perror("pthread_create(fb_update_thread) failed\n");
+      return 1;
+    }
   }
 
   note_row song_rows[NUM_NOTE_ROWS];
 
   char line[9]; // Buffer to store each line (8 characters + null terminator)
   FILE *file = fopen("single_note_comaless.txt", "r");
-  
+
   int i = 0;
   while (fgets(line, sizeof(line), file) != NULL) {
-      // Remove the newline character if present
-      if (line[strlen(line) - 1] == '\n') {
-          line[strlen(line) - 1] = '\0';
-      }
-      if (strlen(line) == 8) {
-          // printf("note: %s\n", line);
-          note_row note_row;
-          set_note(&note_row, line);
-          song_rows[i++] = note_row;
-      }
+    // Remove the newline character if present
+    if (line[strlen(line) - 1] == '\n') {
+      line[strlen(line) - 1] = '\0';
+    }
+    if (strlen(line) == 8) {
+      // printf("note: %s\n", line);
+      note_row note_row;
+      set_note(&note_row, line);
+      song_rows[i++] = note_row;
+    }
+  }
 
-  } 
-  
   fclose(file);
 
   int current_bottom_row_idx = 0, num_note_rows = 100;
@@ -412,6 +429,7 @@ int main() {
     }
 
     current_bottom_row_Y += note_row_pixels_per_ms * time_delta;
+    pthread_mutex_lock(&controller_mutex);
     if (controller_state.strum) {
       // Is the bottom note in a playable range, and did we try?
       if (current_bottom_row_Y <= guitar_state_line_Y + 12 &&
@@ -426,23 +444,6 @@ int main() {
         printf("MISS (None to hit)\n");
       }
     }
-
-    // Is it time to shift the buffer because a note has gone off-screen?
-    if (round(current_bottom_row_Y) >= WINDOW_HEIGHT + 13) {
-      // The bottom row is off screen
-      current_bottom_row_idx++;
-      current_bottom_row_Y -= (24 + 2 * note_row_veritcal_padding);
-
-      if (current_bottom_row_idx >= num_note_rows) {
-        // We are done with the game
-        // TODO break;
-        break;
-      }
-    }
-
-    // printf("Elapsed time: %llums\n", last_draw_time - song_start_time);
-    // printf("current_bottom_row_Y: %f\n", current_bottom_row_Y);
-    // printf("current_bottom_row_idx: %d\n", current_bottom_row_idx);
 
     // Draw the Guitar state line
     draw_sprite(controller_state.green ? play_circles_held.green
@@ -460,6 +461,19 @@ int main() {
     draw_sprite(controller_state.orange ? play_circles_held.orange
                                         : play_circles_released.orange,
                 next_frame, color_cols_x.orange, guitar_state_line_Y);
+    pthread_mutex_unlock(&controller_mutex);
+
+    // Is it time to shift the buffer because a note has gone off-screen?
+    if (round(current_bottom_row_Y) >= WINDOW_HEIGHT + 13) {
+      // The bottom row is off screen
+      current_bottom_row_idx++;
+      current_bottom_row_Y -= (24 + 2 * note_row_veritcal_padding);
+
+      if (current_bottom_row_idx >= num_note_rows) {
+        // We are done with the game
+        break;
+      }
+    }
 
     // Push next frame to buffer
     pthread_mutex_lock(&framebuffer_mutex);
