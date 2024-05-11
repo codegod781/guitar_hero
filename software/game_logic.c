@@ -4,8 +4,8 @@
 #include "note_reader.h"
 #include "song_data.h"
 #include "sprites.h"
-#include "vga_framebuffer.h"
 #include "vga_emulator.h"
+#include "vga_framebuffer.h"
 #include <SDL2/SDL_blendmode.h>
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -39,21 +39,17 @@ struct {
 } color_cols_x = {15, 45, 75, 105, 135};
 
 char *read_note() {
-  printf("call to kernel\n");
   int arg;
 
   if (ioctl(guitar_fd, VGA_BALL_READ_BACKGROUND, &arg)) {
     perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
   }
-  printf("chunk  = %02x\n", arg);
 
   // Static buffer to hold the string (two characters + null terminator)
   static char result_string[3];
 
   // Convert the integer value to a two-digit hexadecimal string
   snprintf(result_string, 3, "%02x", arg);
-
-  printf("string  = %s\n", result_string);
 
   return result_string;
 }
@@ -149,9 +145,8 @@ void set_note_guitar(guitar_state *note_state, const char *binary_string) {
 void *read_and_buffer_input(void *arg) {
   (void) arg; // Suppress unused warning
 
-  while (true) {
+  while (1) {
     char *guitar_hex = read_note();
-    printf("random hex: %s\n", guitar_hex);
     char *binary_string = hex_string_to_binary(guitar_hex);
 
     guitar_state note;
@@ -160,6 +155,8 @@ void *read_and_buffer_input(void *arg) {
     pthread_mutex_lock(&controller_mutex);
     controller_state = note;
     pthread_mutex_unlock(&controller_mutex);
+
+    usleep(16667); // 60 Hz refresh rate
   }
   return NULL;
 }
@@ -336,8 +333,8 @@ int main() {
       return -1;
     }
 
-    if ((guitar_fd = open("/dev/guitar", O_RDONLY)) == -1) {
-      perror("could not open /dev/guitar\n");
+    if ((guitar_fd = open("/dev/note_reader", O_RDONLY)) == -1) {
+      perror("could not open /dev/note_reader\n");
       return -1;
     }
 
@@ -380,7 +377,7 @@ int main() {
   int note_duration = round((60.0 / SONG_BPM) / NOTES_PER_MEASURE * 1000);
 
   // The Y coordinate of the middle of the guitar state line
-  int guitar_state_line_Y = WINDOW_HEIGHT - 15;
+  int guitar_state_line_Y = WINDOW_HEIGHT - 24;
   // How many pixels of "margin" (top and bottom) to apply to each note
   int note_row_veritcal_padding = 8;
   // THe total height including the 24x24 px sprite and the margin
@@ -429,6 +426,7 @@ int main() {
     }
 
     current_bottom_row_Y += note_row_pixels_per_ms * time_delta;
+
     pthread_mutex_lock(&controller_mutex);
     if (controller_state.strum) {
       // Is the bottom note in a playable range, and did we try?
@@ -464,7 +462,7 @@ int main() {
     pthread_mutex_unlock(&controller_mutex);
 
     // Is it time to shift the buffer because a note has gone off-screen?
-    if (round(current_bottom_row_Y) >= WINDOW_HEIGHT + 13) {
+    if (round(current_bottom_row_Y) >= WINDOW_HEIGHT + 8) {
       // The bottom row is off screen
       current_bottom_row_idx++;
       current_bottom_row_Y -= (24 + 2 * note_row_veritcal_padding);
@@ -479,8 +477,6 @@ int main() {
     pthread_mutex_lock(&framebuffer_mutex);
     memcpy(framebuffer, next_frame, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
     pthread_mutex_unlock(&framebuffer_mutex);
-
-    usleep(16667); // 60 Hz refresh rate
   }
 
   // TODO: game end

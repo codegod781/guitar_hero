@@ -1,6 +1,6 @@
 ifneq (${KERNELRELEASE},)
 	# KERNELRELEASE defined: we are being compiled as part of the Kernel
-	obj-m := vga_framebuffer.o
+	obj-m := vga_framebuffer.o note_reader.o
 endif
 
 CC=gcc

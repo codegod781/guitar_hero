@@ -1,5 +1,5 @@
-#ifndef _VGA_BALL_H
-#define _VGA_BALL_H
+#ifndef _VGA_FRAMEBUFFER_H
+#define _VGA_FRAMEBUFFER_H
 
 #include <linux/ioctl.h>
 #ifdef __KERNEL__
