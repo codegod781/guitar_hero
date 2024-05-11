@@ -153,7 +153,7 @@ static int vga_ball_remove(struct platform_device *pdev)
 /* Which "compatible" string(s) to search for in the Device Tree */
 #ifdef CONFIG_OF
 static const struct of_device_id vga_ball_of_match[] = {
-	{ .compatible = "csee4840,note_reader-1.0" },
+	{ .compatible = "csee4840,guitar-1.0" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, vga_ball_of_match);
