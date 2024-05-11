@@ -33,6 +33,26 @@ long long current_time_in_ms() {
   return ms;
 }
 
+void set_note(note_row *note_state, const char *binary_string) {
+    if (note_state == NULL || binary_string == NULL) {
+        return; // Error handling: Ensure note_state and binary_string are not NULL
+    }
+
+    // Convert the binary string to integer values
+    int green = binary_string[7] - '0';
+    int red = binary_string[6] - '0';
+    int yellow = binary_string[5] - '0';
+    int blue = binary_string[4] - '0';
+    int orange = binary_string[3] - '0';
+
+    // Assign the values to the struct fields
+    note_state->green = green;
+    note_state->red = red;
+    note_state->yellow = yellow;
+    note_state->blue = blue;
+    note_state->orange = orange;
+}
+
 int hit_notes(guitar_state controller_state, note_row notes) {
   return controller_state.green == notes.green &&
          controller_state.red == notes.red &&
@@ -124,7 +144,30 @@ int main() {
       return 1;
 
   // TODO: Load song note rows from file instead of hard-coded
-  note_row *song_rows;
+  //note_row *song_rows;
+  note_row song_rows[300];
+
+
+  char line[9]; // Buffer to store each line (8 characters + null terminator)
+  FILE *file = fopen("single_note_comaless.txt", "r");
+  
+  int i = 0;
+  while (fgets(line, sizeof(line), file) != NULL) {
+      // Remove the newline character if present
+      if (line[strlen(line) - 1] == '\n') {
+          line[strlen(line) - 1] = '\0';
+      }
+      if (strlen(line) == 8) {
+          // printf("note: %s\n", line);
+          note_row note_row;
+          set_note(&note_row, line);
+          expected_note_buffer[i++] = note;
+      }
+
+  } 
+  
+  fclose(file);
+
   int current_bottom_row_idx = 0, num_note_rows = 100;
   double current_bottom_row_Y = 0;
   int beat_duration = round((60.0 / SONG_BPM) * 1000);
