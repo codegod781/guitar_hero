@@ -144,7 +144,6 @@ int main() {
       return 1;
 
   // TODO: Load song note rows from file instead of hard-coded
-  //note_row *song_rows;
   note_row song_rows[300];
 
 
@@ -161,7 +160,7 @@ int main() {
           // printf("note: %s\n", line);
           note_row note_row;
           set_note(&note_row, line);
-          expected_note_buffer[i++] = note;
+          song_rows[i++] = note_row;
       }
 
   } 
@@ -180,23 +179,6 @@ int main() {
   int note_height_px = 24 + 2 * note_row_veritcal_padding;
   // How many pixels each note row has to move down the screen in one ms
   double note_row_pixels_per_ms = (double)(note_height_px) / beat_duration;
-
-  srand(time(NULL));
-
-  song_rows = malloc(num_note_rows * sizeof(note_row));
-  if (song_rows == NULL) {
-    fprintf(stderr, "song_rows memory allocation failed.\n");
-    return 1;
-  }
-
-  // Initialize each note_row with random values
-  for (int i = 0; i < num_note_rows; i++) {
-    song_rows[i].green = 1; // rand() % 2;
-    song_rows[i].red = rand() % 2;
-    song_rows[i].yellow = rand() % 2;
-    song_rows[i].blue = rand() % 2;
-    song_rows[i].orange = rand() % 2;
-  }
 
   printf("---SONG INFORMATION---\n");
   printf("BPM: %d\n", SONG_BPM);
@@ -293,9 +275,6 @@ int main() {
   }
 
   // TODO: game end
-
-  // TODO: remove
-  free(song_rows);
 
   if (EMULATING_VGA)
     VGAEmulator_destroy(&emulator);
