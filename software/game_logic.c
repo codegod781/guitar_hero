@@ -144,8 +144,7 @@ int main() {
       return 1;
 
   // TODO: Load song note rows from file instead of hard-coded
-  note_row song_rows[300];
-
+  note_row song_rows[NUM_NOTE_ROWS];
 
   char line[9]; // Buffer to store each line (8 characters + null terminator)
   FILE *file = fopen("single_note_comaless.txt", "r");
@@ -169,7 +168,7 @@ int main() {
 
   int current_bottom_row_idx = 0, num_note_rows = 100;
   double current_bottom_row_Y = 0;
-  int beat_duration = round((60.0 / SONG_BPM) * 1000);
+  int note_duration = round((60.0 / SONG_BPM) / NOTES_PER_MEASURE * 1000);
 
   // The Y coordinate of the middle of the guitar state line
   int guitar_state_line_Y = WINDOW_HEIGHT - 15;
@@ -178,11 +177,11 @@ int main() {
   // THe total height including the 24x24 px sprite and the margin
   int note_height_px = 24 + 2 * note_row_veritcal_padding;
   // How many pixels each note row has to move down the screen in one ms
-  double note_row_pixels_per_ms = (double)(note_height_px) / beat_duration;
+  double note_row_pixels_per_ms = (double)(note_height_px) / note_duration;
 
   printf("---SONG INFORMATION---\n");
   printf("BPM: %d\n", SONG_BPM);
-  printf("Beat duration: %dms\n", beat_duration);
+  printf("Beat duration: %dms\n", note_duration);
   printf("Note row pixels/ms: %f\n", note_row_pixels_per_ms);
 
   // TODO: any start menu here
