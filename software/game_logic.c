@@ -1,7 +1,8 @@
 #include "colors.h"
 #include "global_consts.h"
+#include "guitar_reader.h"
 #include "guitar_state.h"
-#include "note_reader.h"
+#include "guitar_reader.h"
 #include "song_data.h"
 #include "sprites.h"
 #include "vga_emulator.h"
@@ -41,8 +42,8 @@ struct {
 char *read_note() {
   int arg;
 
-  if (ioctl(guitar_fd, VGA_BALL_READ_BACKGROUND, &arg)) {
-    perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
+  if (ioctl(guitar_fd, GUITAR_READER_READ, &arg)) {
+    perror("ioctl(GUITAR_READER_READ) failed");
   }
 
   // Static buffer to hold the string (two characters + null terminator)
