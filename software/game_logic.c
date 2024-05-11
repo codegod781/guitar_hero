@@ -5,23 +5,21 @@
 #include "sprites.h"
 #include "vga_emulator.h"
 #include "note_reader.h"
+#include "vga_framebuffer.h"
 #include <SDL2/SDL_blendmode.h>
 #include <linux/fb.h>
 #include <math.h>
 #include <ncurses.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <string.h>
 #include <pthread.h>
-
-
-
 
 //Call to kernel
 char* read_note() {
@@ -111,6 +109,14 @@ void* read_and_buffer_input(void *arg) {
     return NULL;
 }
 
+
+int EMULATING_VGA = 0;
+
+int SCREEN_LINE_LENGTH;
+int vga_framebuffer_fd;
+unsigned char *framebuffer;
+pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct {
   int green;
   int red;
@@ -118,9 +124,6 @@ struct {
   int blue;
   int orange;
 } color_cols_x = {15, 45, 75, 105, 135};
-
-int EMULATING_VGA = 1;
-int SCREEN_LINE_LENGTH;
 
 long long current_time_in_ms() {
   struct timeval tv;
@@ -130,6 +133,51 @@ long long current_time_in_ms() {
       (tv.tv_usec /
        1000); // Convert seconds to ms and add microseconds converted to ms
   return ms;
+}
+
+uint32_t pixel_writedata(unsigned char pixel_color, int pixel_row,
+                         int pixel_col) {
+  uint32_t pixel_writedata;
+  // Make pixel_color pixel_writedata fits into 6 bits
+  pixel_color &= 0x3F;
+
+  // Make sure pixel_col fits into 8 bits
+  pixel_col &= 0xFF;
+
+  // Make sure pixel_row fits into 9 bits
+  pixel_row &= 0x1FF;
+
+  // Combine the values
+  pixel_writedata = 0;
+  pixel_writedata |= (uint32_t)pixel_color;       // 6 least significant bits
+  pixel_writedata |= ((uint32_t)pixel_col << 6);  // Next 8 bits
+  pixel_writedata |= ((uint32_t)pixel_row << 14); // Next 9 bits
+
+  return pixel_writedata;
+}
+
+void* update_framebuffer(void* arg) {
+    (void)arg; // Suppress warning
+
+    while (1) {
+        pthread_mutex_lock(&framebuffer_mutex);
+        for (int pixel_row = 0; pixel_row < WINDOW_HEIGHT; pixel_row++) {
+            for (int pixel_col = 0; pixel_col < WINDOW_WIDTH; pixel_col++) {
+                unsigned char *pixel =
+                    framebuffer + (pixel_row * WINDOW_WIDTH + pixel_col) * 4;
+                RGB pixel_rgb = {pixel[2], pixel[1], pixel[0]};
+
+                vga_framebuffer_arg_t vfba;
+                vfba.pixel_writedata = pixel_writedata(get_color_from_rgb(pixel_rgb), pixel_row, pixel_col);;
+
+                if (ioctl(vga_framebuffer_fd, VGA_FRAMEBUFFER_UPDATE, &vfba)) {
+                    perror("ioctl(VGA_FRAMEBUFFER_UPDATE) failed");
+                }
+            }
+        }
+        pthread_mutex_unlock(&framebuffer_mutex);
+    }
+    return NULL;
 }
 
 void set_note(note_row *note_state, const char *binary_string) {
@@ -214,7 +262,8 @@ int main() {
                                  .middle_gray = palette[MIDDLE_ORANGE],
                                  .dark_gray = palette[DARK_ORANGE]};
   // 32 bits/pixel = 4 B/pixel
-  unsigned char *framebuffer, *next_frame;
+  unsigned char *next_frame;
+  pthread_t fb_update_thread;
   VGAEmulator emulator;
 
   guitar_state controller_state;
@@ -267,6 +316,16 @@ int main() {
     if (VGAEmulator_init(&emulator, framebuffer, &controller_state))
       return 1;
   else {
+    // Set up VGA framebuffer connection
+    if ((vga_framebuffer_fd = open("/dev/vga_framebuffer", O_RDONLY)) == -1) {
+      perror("could not open /dev/vga_framebuffer\n");
+      return -1;
+    }
+  
+    if (pthread_create(&fb_update_thread, NULL, &update_framebuffer, NULL) != 0) {
+        perror("pthread_create(fb_update_thread) failed");
+        return 1;
+    }
     // Set up guitar state thread
     // fix mutex
     if (pthread_create(&tid, NULL, read_and_buffer_input, NULL) != 0) {
@@ -277,7 +336,6 @@ int main() {
     pthread() -> controller_state
   }
 
-  // TODO: Load song note rows from file instead of hard-coded
   note_row song_rows[NUM_NOTE_ROWS];
 
   char line[9]; // Buffer to store each line (8 characters + null terminator)
@@ -404,7 +462,11 @@ int main() {
                 next_frame, color_cols_x.orange, guitar_state_line_Y);
 
     // Push next frame to buffer
+    pthread_mutex_lock(&framebuffer_mutex);
     memcpy(framebuffer, next_frame, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+    pthread_mutex_unlock(&framebuffer_mutex);
+
+    usleep(16667); // 60 Hz refresh rate
   }
 
   // TODO: game end
